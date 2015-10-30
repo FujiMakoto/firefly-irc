@@ -1,0 +1,2 @@
+class LanguageImportError(ImportError):
+    pass
