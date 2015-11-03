@@ -17,5 +17,6 @@ setup(
     entry_points={
         # 'ene.interfaces.languages': ['agentml = ene.interfaces.languages.agentml:AgentMlLanguage']
     },
-    requires=['twisted', 'sqlalchemy', 'alembic', 'pymysql', 'voluptuous', 'appdirs', 'agentml']
+    requires=['twisted>=15.4.0,<15.5', 'sqlalchemy>=1.0.9,<1.1', 'alembic>=0.8.3,<0.9', 'pymysql>=0.6.7,<0.7',
+              'voluptuous>=0.8.7,<0.9', 'appdirs>=1.4.0<1.5', 'agentml>=0.3.1,<0.4']
 )
