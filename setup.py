@@ -3,8 +3,8 @@ from setuptools import setup, find_packages
 setup(
     name='Ene IRC',
     version='0.1.0',
-    description='Ene',
-    long_description='Ene',
+    description='Ene IRC',
+    long_description='Ene IRC',
     author='Makoto Fujimoto',
     author_email='makoto@makoto.io',
     url='https://github.com/FujiMakoto/Ene-IRC',
