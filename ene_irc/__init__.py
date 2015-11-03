@@ -32,7 +32,7 @@ class EneIRC:
     def _load_language_interface(self, language):
         self.log.info('Loading language interface: {lang}'.format(lang=language))
         try:
-            module = importlib.import_module('languages.{module}'.format(module=language))
+            module = importlib.import_module('ene_irc.languages.{module}'.format(module=language))
             self.language = module.__LANGUAGE_CLASS__()
         except ImportError as e:
             self.log.error('ImportError raised when loading language')

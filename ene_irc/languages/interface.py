@@ -1,7 +1,7 @@
 from abc import ABCMeta, abstractmethod
 
 
-class LanguageInterface:
+class LanguageInterface(object):
 
     __metaclass__ = ABCMeta
 
