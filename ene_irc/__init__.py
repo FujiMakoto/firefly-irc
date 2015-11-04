@@ -1,8 +1,11 @@
 import importlib
 import logging
 import os
+import pkg_resources
+import venusian
+from ene_irc import plugins
 from appdirs import user_config_dir, user_data_dir
-from errors import LanguageImportError
+from errors import LanguageImportError, PluginCommandExistsError, PluginError
 
 __author__     = "Makoto Fujimoto"
 __copyright__  = 'Copyright 2015, Makoto Fujimoto'
@@ -23,11 +26,13 @@ class EneIRC:
         self.language = None
         """@type : ene_irc.languages.interface.LanguageInterface"""
         self._load_language_interface(language)
-        
-        self.commands = []
-        self.events = []
 
+        self.registry = _Registry()
         self._setup()
+
+        self.plugins = pkg_resources.get_entry_map('ene_irc', 'ene_irc.plugins')
+        scanner = venusian.Scanner(ene=self)
+        scanner.scan(plugins)
 
     def _load_language_interface(self, language):
         self.log.info('Loading language interface: {lang}'.format(lang=language))
@@ -49,8 +54,63 @@ class EneIRC:
         if os.path.isdir(lang_dir):
             self.language.load_directory(lang_dir)
 
-    def bind_event(self, name, callback):
+
+class PluginAbstract(object):
+
+    __ENE_IRC_PLUGIN_NAME__ = None
+    __ENE_IRC_PLUGIN_DEFAULT_PERMISSION__ = 'guest'
+
+    def __init__(self, ene):
+        """
+        DateTime plugin
+        @type ene:  ene_irc.EneIRC
+        """
+        self.ene = ene
+
+
+class _Registry(object):
+
+    def __init__(self):
+        self._commands = {}
+        self._events = {}
+        self._log = logging.getLogger('ene_irc.registry')
+
+    def bind_command(self, name, cls, func, params):
+        """
+        Bind a command to the registry
+        @param  name:   Name of the command
+        @type   name:   str
+        @param  cls:    Plugin class
+        @param  func:   Command function
+        @param  params: Arbitrary command configuration attributes
+        @type   params: dict
+        @raise  PluginCommandExistsError: Raised if this plugin has already been mapped
+        """
+        self._log.info('Binding new plugin command: %s', name)
+
+        # Make sure we have a valid plugin class
+        if not issubclass(cls, PluginAbstract):
+            raise PluginError('Plugin class must extend ene_irc.PluginAbstract')
+
+        # Make sure an entry for our plugin exists
+        plugin_name = cls.__ENE_IRC_PLUGIN_NAME__ or cls.__name__
+
+        if plugin_name not in self._commands:
+            self._commands[plugin_name] = {}
+
+        # Make sure this plugin has not already been mapped
+        if name in self._commands[plugin_name]:
+            raise PluginCommandExistsError('%s has already been bound by %s', name,
+                                           str(self._commands[plugin_name][name][0]))
+
+        # Map the command
+        self._commands[plugin_name][name] = (cls, func, params)
+
+    def get_command(self, name):
         pass
 
-    def call_event(self, name):
+    def bind_event(self, name, cls, func, params):
+        pass
+
+    def get_event(self, name):
         pass

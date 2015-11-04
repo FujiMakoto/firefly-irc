@@ -1,17 +1,26 @@
+import venusian
+import logging
+
+
 # noinspection PyPep8Naming
 class event(object):
 
     def __init__(self, event_name='', permission='guest'):
-        self.event = event_name
+        self.event_name = event_name
         self.permission = permission
 
-    def __call__(self, f):
-        """
-        If there are decorator arguments, __call__() is only called
-        once, as part of the decoration process! You can only give
-        it a single argument, which is the function object.
-        """
-        f.ene.bind_event(self.event, f)
+    def __call__(self, func):
+        logging.getLogger('ene_irc.event').debug('Decorating event function: %s (%s)', self.event_name, str(func))
+
+        def callback(scanner, name, ob):
+            event_name = self.event_name or func.__name__
+            params = {'name': event_name, 'permission': self.permission}
+
+            scanner.ene.registry.bind_event(event_name, ob, func, params)
+            return func
+
+        venusian.attach(func, callback, category='events')
+        return func
 
 
 on_created                  = 'created'
@@ -23,6 +32,7 @@ on_server_supports          = 'isupport'
 on_luser_channels           = 'luserChannels'
 on_luser_ops                = 'luserOp'
 on_luser_connection         = 'luserMe'
+on_message                  = 'privmsg'
 on_channel_message          = 'channelMessage'  # custom event
 on_private_message          = 'privateMessage'  # custom event
 on_client_join              = 'joined'
@@ -39,6 +49,7 @@ on_channel_join             = 'userJoined'
 on_channel_part             = 'userLeft'
 on_user_quit                = 'userQuit'
 on_channel_kick             = 'userKicked'
+on_action                   = 'action'
 on_channel_action           = 'channelAction'  # custom event
 on_private_action           = 'privateAction'  # custom event
 on_channel_topic_updated    = 'topicUpdated'
@@ -56,3 +67,23 @@ on_ctcp_source              = 'ctcpQuery_SOURCE'
 on_ctcp_userinfo            = 'ctcpQuery_USERINFO'
 on_ctcp_time                = 'ctcpQuery_TIME'
 
+
+# noinspection PyPep8Naming
+class command(object):
+
+    def __init__(self, command_name, permission='guest'):
+        self.command_name = command_name
+        self.permission = permission
+
+    def __call__(self, func):
+        logging.getLogger('ene_irc.command').debug('Decorating command function: %s (%s)', self.command_name, str(func))
+
+        def callback(scanner, name, ob):
+            command_name = self.command_name or func.__name__
+            params = {'name': command_name, 'permission': self.permission}
+
+            scanner.ene.registry.bind_command(command_name, ob, func, params)
+            return func
+
+        venusian.attach(func, callback, category='commands')
+        return func
