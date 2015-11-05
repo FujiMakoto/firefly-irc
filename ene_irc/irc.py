@@ -5,7 +5,7 @@ import logging
 # noinspection PyPep8Naming
 class event(object):
 
-    def __init__(self, event_name='', permission='guest'):
+    def __init__(self, event_name=None, permission='guest'):
         self.event_name = event_name
         self.permission = permission
 
