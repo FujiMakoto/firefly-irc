@@ -62,7 +62,12 @@ class EneIRC(IRCClient):
             self.language.load_directory(lang_dir)
 
     def _fire_event(self, event_name, **kwargs):
-        pass
+        self._log.info('Firing event: %s', event_name)
+        events = self.registry.get_events(event_name)
+
+        for cls, func, params in events:
+            self._log.info('Firing event: %s (%s); Params: %s', str(cls), str(func), str(params))
+            func(cls, **kwargs)
 
     ################################
     # IRC Events                   #
@@ -206,5 +211,21 @@ class _Registry(object):
         # Map the command
         self._events[plugin_name][name].append((cls, func, params))
 
-    def get_event(self, name):
-        pass
+    def get_events(self, name):
+        self._log.info('Retrieving events: %s', name)
+        all_events = []
+
+        # Iterate our plugins and search for matching events
+        for plugin, events in self._events.iteritems():
+            self._log.debug('Searching plugin %s...', plugin)
+
+            # Does this plugin have events we want?
+            if name not in events:
+                self._log.debug('No events found in the %s plugin', plugin)
+                continue
+
+            # Append our events and continue
+            self._log.debug('%d events matched', len(events[name]))
+            all_events += events[name]
+
+        return all_events
