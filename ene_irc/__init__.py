@@ -2,9 +2,10 @@ import importlib
 import logging
 import os
 import pkg_resources
+from twisted.internet import reactor, protocol
 from twisted.words.protocols.irc import IRCClient
 import venusian
-from ene_irc import plugins
+from ene_irc import plugins, irc
 from appdirs import user_config_dir, user_data_dir
 from errors import LanguageImportError, PluginCommandExistsError, PluginError
 
@@ -16,6 +17,8 @@ __maintainer__ = "Makoto Fujimoto"
 
 
 class EneIRC(IRCClient):
+
+    nickname = "Ene"
 
     def __init__(self, language='aml', log_level=logging.DEBUG):
         self._log = logging.getLogger('ene_irc')
@@ -70,7 +73,7 @@ class EneIRC(IRCClient):
             func(cls, **kwargs)
 
     ################################
-    # IRC Events                   #
+    # High-level IRC Events        #
     ################################
 
     def created(self, when):
@@ -80,7 +83,7 @@ class EneIRC(IRCClient):
         @type   when: C{str}
         @param  when: A string describing when the server was created, probably.
         """
-        self._fire_event('created', when=when)
+        self._fire_event(irc.on_created, when=when)
 
     def yourHost(self, info):
         """
@@ -89,7 +92,7 @@ class EneIRC(IRCClient):
         @param  info: A string describing what software the server is running, probably.
         @type   info: C{str}
         """
-        self._fire_event('yourHost', info=info)
+        self._fire_event(irc.on_server_host, info=info)
 
     def myInfo(self, server_name, version, umodes, cmodes):
         """
@@ -107,17 +110,302 @@ class EneIRC(IRCClient):
         @type   cmodes: C{str}
         @param  cmodes: All the available channel modes.
         """
-        self._fire_event('myInfo', server_name=server_name, version=version,
+        self._fire_event(irc.on_client_info, server_name=server_name, version=version,
                          umodes=umodes, cmodes=cmodes)
 
-    def lineReceived(self, line):
-        pass
+    def luserClient(self, info):
+        """
+        Called with information about the number of connections, usually at logon.
 
-    def dccSend(self, user, file):
-        pass
+        @type   info: C{str}
+        @param  info: A description of the number of clients and servers connected to the network, probably.
+        """
+        self._fire_event(irc.on_luser_client, info=info)
 
-    def rawDataReceived(self, data):
-        pass
+    def bounce(self, info):
+        """
+        Called with information about where the client should reconnect.
+
+        @type   info: C{str}
+        @param  info: A plaintext description of the address that should be connected to.
+        """
+        self._fire_event(irc.on_bounce, info=info)
+
+    def isupport(self, options):
+        """
+        Called with various information about what the server supports.
+
+        @type   options: C{list} of C{str}
+        @param  options: Descriptions of features or limits of the server, possibly in the form "NAME=VALUE".
+        """
+        self._fire_event(irc.on_server_supports, options=options)
+
+    def luserChannels(self, channels):
+        """
+        Called with the number of channels existent on the server.
+
+        @type channels: C{int}
+        """
+        self._fire_event(irc.on_luser_channels, channels=channels)
+
+    def luserOp(self, ops):
+        """
+        Called with the number of ops logged on to the server.
+
+        @type ops: C{int}
+        """
+        self._fire_event(irc.on_luser_ops, ops=ops)
+
+    def luserMe(self, info):
+        """
+        Called with information about the server connected to.
+
+        @type info: C{str}
+        @param info: A plaintext string describing the number of users and servers
+        connected to this server.
+        """
+        self._fire_event(irc.on_luser_connection, info=info)
+
+    def privmsg(self, user, channel, message):
+        """
+        Called when I have a message from a user to me or a channel.
+        TODO: Route to custom events
+        """
+        self._fire_event(irc.on_message, user=user, channel=channel, message=message)
+
+    def joined(self, channel):
+        """
+        Called when I finish joining a channel.
+
+        channel has the starting character (C{'#'}, C{'&'}, C{'!'}, or C{'+'})
+        intact.
+        """
+        self._fire_event(irc.on_client_join, channel=channel)
+
+    def left(self, channel):
+        """
+        Called when I have left a channel.
+
+        channel has the starting character (C{'#'}, C{'&'}, C{'!'}, or C{'+'})
+        intact.
+        """
+        self._fire_event(irc.on_client_part)
+
+    def noticed(self, user, channel, message):
+        """
+        Called when I have a notice from a user to me or a channel.
+        TODO: Route to custom events
+
+        If the client makes any automated replies, it must not do so in
+        response to a NOTICE message, per the RFC::
+
+            The difference between NOTICE and PRIVMSG is that
+            automatic replies MUST NEVER be sent in response to a
+            NOTICE message. [...] The object of this rule is to avoid
+            loops between clients automatically sending something in
+            response to something it received.
+        """
+        self._fire_event(irc.on_notice, user=user, channel=channel, message=message)
+
+    def modeChanged(self, user, channel, set, modes, args):
+        """
+        Called when users or channel's modes are changed.
+
+        @type user: C{str}
+        @param user: The user and hostmask which instigated this change.
+
+        @type channel: C{str}
+        @param channel: The channel where the modes are changed. If args is
+        empty the channel for which the modes are changing. If the changes are
+        at server level it could be equal to C{user}.
+
+        @type set: C{bool} or C{int}
+        @param set: True if the mode(s) is being added, False if it is being
+        removed. If some modes are added and others removed at the same time
+        this function will be called twice, the first time with all the added
+        modes, the second with the removed ones. (To change this behaviour
+        override the irc_MODE method)
+
+        @type modes: C{str}
+        @param modes: The mode or modes which are being changed.
+
+        @type args: C{tuple}
+        @param args: Any additional information required for the mode
+        change.
+        """
+        self._fire_event(irc.on_mode_changed, user=user, channel=channel, set=set,modes=modes, args=args)
+
+    def pong(self, user, secs):
+        """
+        Called with the results of a CTCP PING query.
+        """
+        self._fire_event(irc.on_pong, user=user, secs=secs)
+
+    def signedOn(self):
+        """
+        Called after successfully signing on to the server.
+        """
+        self._fire_event(irc.on_client_signed_on)
+        self.join('#homestead')
+
+    def kickedFrom(self, channel, kicker, message):
+        """
+        Called when I am kicked from a channel.
+        """
+        self._fire_event(irc.on_client_kicked, channel=channel, kicker=kicker, message=message)
+
+    def nickChanged(self, nick):
+        """
+        Called when my nick has been changed.
+        """
+        self.nickname = nick
+        self._fire_event(irc.on_client_nick, nick=nick)
+
+    def userJoined(self, user, channel):
+        """
+        Called when I see another user joining a channel.
+        """
+        self._fire_event(irc.on_channel_join, user=user, channel=channel)
+
+    def userLeft(self, user, channel):
+        """
+        Called when I see another user leaving a channel.
+        """
+        self._fire_event(irc.on_channel_part, user=user, channel=channel)
+
+    def userQuit(self, user, quitMessage):
+        """
+        Called when I see another user disconnect from the network.
+        """
+        self._fire_event(irc.on_user_quit, user=user, quit_message=quitMessage)
+
+    def userKicked(self, kickee, channel, kicker, message):
+        """
+        Called when I observe someone else being kicked from a channel.
+        """
+        self._fire_event(irc.on_channel_kick, kickee=kickee, channel=channel, kicker=kicker, message=message)
+
+    def action(self, user, channel, data):
+        """
+        Called when I see a user perform an ACTION on a channel.
+        TODO: Route to custom events
+        """
+        self._fire_event(irc.on_action, user=user, channel=channel, data=data)
+
+    def topicUpdated(self, user, channel, newTopic):
+        """
+        In channel, user changed the topic to newTopic.
+
+        Also called when first joining a channel.
+        """
+        self._fire_event(irc.on_channel_topic_updated, user=user, channel=channel, new_topic=newTopic)
+
+    def userRenamed(self, oldname, newname):
+        """
+        A user changed their name from oldname to newname.
+        """
+        self._fire_event(irc.on_user_nick_changed, old_nick=oldname, new_nick=newname)
+
+    def receivedMOTD(self, motd):
+        """
+        I received a message-of-the-day banner from the server.
+
+        motd is a list of strings, where each string was sent as a separate
+        message from the server. To display, you might want to use::
+
+            '\\n'.join(motd)
+
+        to get a nicely formatted string.
+        """
+        self._fire_event(irc.on_server_motd, motd=motd)
+
+    ################################
+    # Low-level IRC Events         #
+    ################################
+
+    def irc_ERR_NICKNAMEINUSE(self, prefix, params):
+        """
+        Called when we try to register or change to a nickname that is already
+        taken.
+        """
+        IRCClient.irc_ERR_NICKNAMEINUSE(self, prefix, params)
+        self._fire_event(irc.on_err_nick_in_use, prefix=prefix, params=params)
+
+    def irc_ERR_ERRONEUSNICKNAME(self, prefix, params):
+        """
+        Called when we try to register or change to an illegal nickname.
+
+        The server should send this reply when the nickname contains any
+        disallowed characters.  The bot will stall, waiting for RPL_WELCOME, if
+        we don't handle this during sign-on.
+
+        @note: The method uses the spelling I{erroneus}, as it appears in
+            the RFC, section 6.1.
+        """
+        IRCClient.irc_ERR_ERRONEUSNICKNAME(self, prefix, params)
+        self._fire_event(irc.on_err_nick_in_use, prefix=prefix, params=params)
+
+    def irc_ERR_PASSWDMISMATCH(self, prefix, params):
+        """
+        Called when the login was incorrect.
+        """
+        IRCClient.irc_ERR_PASSWDMISMATCH(self, prefix, params)
+        self._fire_event(irc.on_err_bad_password, prefix=prefix, params=params)
+
+    def irc_RPL_WELCOME(self, prefix, params):
+        """
+        Called when we have received the welcome from the server.
+        """
+        IRCClient.irc_RPL_WELCOME(self, prefix, params)
+        self._fire_event(irc.on_server_welcome, prefix=prefix, params=params)
+
+    def irc_unknown(self, prefix, command, params):
+        self._fire_event(irc.on_unknown, prefix=prefix, command=command, params=params)
+
+    def ctcpQuery(self, user, channel, messages):
+        """
+        Dispatch method for any CTCP queries received.
+
+        Duplicated CTCP queries are ignored and no dispatch is
+        made. Unrecognized CTCP queries invoke L{IRCClient.ctcpUnknownQuery}.
+        """
+        self._fire_event(irc.on_ctcp, user=user, channel=channel, messages=messages)
+        IRCClient.ctcpQuery(self, user=user, channel=channel, messages=messages)
+
+    def ctcpQuery_ACTION(self, user, channel, data):
+        self._fire_event(irc.on_ctcp_action, user=user, channel=channel, data=data)
+        IRCClient.ctcpQuery(self, user, channel, data)
+
+    def ctcpQuery_PING(self, user, channel, data):
+        self._fire_event(irc.on_ctcp_ping, user=user, channel=channel, data=data)
+        IRCClient.ctcpQuery_PING(self, user, channel, data)
+
+    def ctcpQuery_FINGER(self, user, channel, data):
+        self._fire_event(irc.on_ctcp_finger, user=user, channel=channel, data=data)
+        IRCClient.ctcpQuery_FINGER(self, user, channel, data)
+
+    def ctcpQuery_VERSION(self, user, channel, data):
+        self._fire_event(irc.on_ctcp_version, user=user, channel=channel, data=data)
+
+    def ctcpQuery_SOURCE(self, user, channel, data):
+        self._fire_event(irc.on_ctcp_source, user=user, channel=channel, data=data)
+
+    def ctcpQuery_USERINFO(self, user, channel, data):
+        self._fire_event(irc.on_ctcp_userinfo, user=user, channel=channel, data=data)
+        IRCClient.ctcpQuery_USERINFO(self, user, channel, data)
+
+    def ctcpQuery_TIME(self, user, channel, data):
+        self._fire_event(irc.on_ctcp_time, user=user, channel=channel, data=data)
+        IRCClient.ctcpQuery_TIME(self, user, channel, data)
+
+    # def lineReceived(self, line):
+    #     pass
+    #
+    # def dccSend(self, user, file):
+    #     pass
+    #
+    # def rawDataReceived(self, data):
+    #     pass
 
 
 class PluginAbstract(object):
@@ -229,3 +517,26 @@ class _Registry(object):
             all_events += events[name]
 
         return all_events
+
+
+class TestFactory(protocol.ClientFactory):
+    """A factory for LogBots.
+
+    A new protocol instance will be created each time we connect to the server.
+    """
+
+    def __init__(self, channel):
+        self.channel = channel
+
+    def buildProtocol(self, addr):
+        p = EneIRC()
+        p.factory = self
+        return p
+
+    def clientConnectionLost(self, connector, reason):
+        """If we get disconnected, reconnect to server."""
+        raise Exception('Lost connection')
+
+    def clientConnectionFailed(self, connector, reason):
+        print "connection failed:", reason
+        reactor.stop()
