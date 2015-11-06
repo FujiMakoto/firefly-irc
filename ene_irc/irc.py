@@ -2,26 +2,9 @@ import venusian
 import logging
 
 
-# noinspection PyPep8Naming
-class event(object):
-
-    def __init__(self, event_name=None, permission='guest'):
-        self.event_name = event_name
-        self.permission = permission
-
-    def __call__(self, func):
-        logging.getLogger('ene_irc.event').debug('Decorating event function: %s (%s)', self.event_name, str(func))
-
-        def callback(scanner, name, ob):
-            event_name = self.event_name or func.__name__
-            params = {'name': event_name, 'permission': self.permission}
-
-            scanner.ene.registry.bind_event(event_name, ob, func, params)
-            return func
-
-        venusian.attach(func, callback, category='events')
-        return func
-
+################################
+# Event constants              #
+################################
 
 on_created                  = 'created'
 on_server_host              = 'yourHost'
@@ -62,7 +45,6 @@ on_err_bad_password         = 'irc_ERR_PASSWDMISMATCH'
 on_server_welcome           = 'irc_RPL_WELCOME'
 on_unknown                  = 'irc_unknown'
 on_ctcp                     = 'ctcpQuery'
-on_ctcp_action              = 'ctcpQuery_ACTION'
 on_ctcp_ping                = 'ctcpQuery_PING'
 on_ctcp_finger              = 'ctcpQuery_FINGER'
 on_ctcp_version             = 'ctcpQuery_VERSION'
@@ -71,14 +53,69 @@ on_ctcp_userinfo            = 'ctcpQuery_USERINFO'
 on_ctcp_time                = 'ctcpQuery_TIME'
 
 
+################################
+# Plugin decorators            #
+################################
+
+# noinspection PyPep8Naming
+class event(object):
+    """
+    IRC event decorator.
+    """
+    def __init__(self, event_name=None, permission=None):
+        """
+        @type   event_name: C{str} or C{None}
+        @param  event_name: Name of the event. If None, uses the name of the function.
+        When using the name of the function, the function should be named after the constant KEY, *NOT* value.
+        For example, an event function should be named C{on_channel_join} instead of C{userJoined}.
+
+        @type   permission: C{str} or C{None}
+        @param  permission: The minimum user permission level required to trigger this event.
+        """
+        self.event_name = event_name
+        self.permission = permission
+
+    def __call__(self, func):
+        """
+        @param  func:   The event function.
+
+        @return:    The decorated function.
+        """
+        logging.getLogger('ene_irc.event').debug('Decorating event function: %s (%s)', self.event_name, str(func))
+
+        def callback(scanner, name, ob):
+            event_name = self.event_name or func.__name__
+            params = {'name': event_name, 'permission': self.permission}
+
+            scanner.ene.registry.bind_event(event_name, ob, func, params)
+            return func
+
+        venusian.attach(func, callback, category='events')
+        return func
+
+
 # noinspection PyPep8Naming
 class command(object):
+    """
+    IRC command decorator.
+    """
+    def __init__(self, command_name=None, permission=None):
+        """
+        @type   command_name:   C{str} or C{None}
+        @param  command_name:   Name of the command. If None, uses the name of the function.
 
-    def __init__(self, command_name, permission='guest'):
+        @type   permission: C{str} or C{None}
+        @param  permission: The minimum user permission level required to call this command.
+        """
         self.command_name = command_name
         self.permission = permission
 
     def __call__(self, func):
+        """
+        @param  func:   The command function.
+
+        @return:    The decorated function.
+        """
         logging.getLogger('ene_irc.command').debug('Decorating command function: %s (%s)', self.command_name, str(func))
 
         def callback(scanner, name, ob):

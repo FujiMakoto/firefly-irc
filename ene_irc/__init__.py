@@ -16,11 +16,23 @@ __version__    = "0.1"
 __maintainer__ = "Makoto Fujimoto"
 
 
+# noinspection PyAbstractClass,PyPep8Naming
 class EneIRC(IRCClient):
-
+    """
+    Ene IRC client.
+    """
+    # Default nick
     nickname = "Ene"
 
     def __init__(self, language='aml', log_level=logging.DEBUG):
+        """
+        @type   language:   C{str}
+        @param  language:   The language engine to use for this instance.
+
+        @type   log_level:  C{int}
+        @param  log_level:  logging log level
+        """
+        # Set up logging
         self._log = logging.getLogger('ene_irc')
         self._log.setLevel(log_level)
         log_formatter = logging.Formatter("[%(asctime)s] %(levelname)s.%(name)s: %(message)s")
@@ -45,6 +57,11 @@ class EneIRC(IRCClient):
         scanner.scan(plugins)
 
     def _load_language_interface(self, language):
+        """
+        Load and instantiate the specific language engine.
+
+        @type   language:   C{str}
+        """
         self._log.info('Loading language interface: {lang}'.format(lang=language))
         try:
             module = importlib.import_module('ene_irc.languages.{module}'.format(module=language))
@@ -59,12 +76,23 @@ class EneIRC(IRCClient):
                                       .format(lang=language))
 
     def _setup(self):
+        """
+        Run generic setup tasks.
+        """
         # Load language files
         lang_dir = os.path.join(self.config_dir, 'language')
         if os.path.isdir(lang_dir):
             self.language.load_directory(lang_dir)
 
     def _fire_event(self, event_name, **kwargs):
+        """
+        Fire an IRC event.
+
+        @type   event_name: C{str}
+        @param  event_name: Name of the event to fire, see ene_irc.irc for a list of event constants
+
+        @param  kwargs:     Arbitrary event arguments
+        """
         self._log.info('Firing event: %s', event_name)
         events = self.registry.get_events(event_name)
 
@@ -177,17 +205,16 @@ class EneIRC(IRCClient):
         """
         Called when I finish joining a channel.
 
-        channel has the starting character (C{'#'}, C{'&'}, C{'!'}, or C{'+'})
-        intact.
+        channel has the starting character (C{'#'}, C{'&'}, C{'!'}, or C{'+'}) intact.
         """
         self._fire_event(irc.on_client_join, channel=channel)
+        self.ping('Makoto')
 
     def left(self, channel):
         """
         Called when I have left a channel.
 
-        channel has the starting character (C{'#'}, C{'&'}, C{'!'}, or C{'+'})
-        intact.
+        channel has the starting character (C{'#'}, C{'&'}, C{'!'}, or C{'+'}) intact.
         """
         self._fire_event(irc.on_client_part)
 
@@ -196,8 +223,7 @@ class EneIRC(IRCClient):
         Called when I have a notice from a user to me or a channel.
         TODO: Route to custom events
 
-        If the client makes any automated replies, it must not do so in
-        response to a NOTICE message, per the RFC::
+        If the client makes any automated replies, it must not do so in response to a NOTICE message, per the RFC::
 
             The difference between NOTICE and PRIVMSG is that
             automatic replies MUST NEVER be sent in response to a
@@ -211,33 +237,35 @@ class EneIRC(IRCClient):
         """
         Called when users or channel's modes are changed.
 
-        @type user: C{str}
-        @param user: The user and hostmask which instigated this change.
+        @type   user: C{str}
+        @param  user: The user and hostmask which instigated this change.
 
-        @type channel: C{str}
-        @param channel: The channel where the modes are changed. If args is
-        empty the channel for which the modes are changing. If the changes are
-        at server level it could be equal to C{user}.
+        @type   channel: C{str}
+        @param  channel: The channel where the modes are changed. If args is empty the channel for which the modes
+        are changing. If the changes are at server level it could be equal to C{user}.
 
-        @type set: C{bool} or C{int}
-        @param set: True if the mode(s) is being added, False if it is being
-        removed. If some modes are added and others removed at the same time
-        this function will be called twice, the first time with all the added
-        modes, the second with the removed ones. (To change this behaviour
-        override the irc_MODE method)
+        @type   set: C{bool} or C{int}
+        @param  set: True if the mode(s) is being added, False if it is being removed. If some modes are added and
+        others removed at the same time this function will be called twice, the first time with all the added modes,
+        the second with the removed ones. (To change this behaviour override the irc_MODE method)
 
-        @type modes: C{str}
-        @param modes: The mode or modes which are being changed.
+        @type   modes: C{str}
+        @param  modes: The mode or modes which are being changed.
 
-        @type args: C{tuple}
-        @param args: Any additional information required for the mode
-        change.
+        @type   args: C{tuple}
+        @param  args: Any additional information required for the mode change.
         """
         self._fire_event(irc.on_mode_changed, user=user, channel=channel, set=set,modes=modes, args=args)
 
     def pong(self, user, secs):
         """
         Called with the results of a CTCP PING query.
+
+        @type   user: C{str}
+        @param  user: The user and hostmask.
+
+        @type   secs: C{float}
+        @param  secs: Ping latency
         """
         self._fire_event(irc.on_pong, user=user, secs=secs)
 
@@ -251,12 +279,24 @@ class EneIRC(IRCClient):
     def kickedFrom(self, channel, kicker, message):
         """
         Called when I am kicked from a channel.
+
+        @type   channel:    C{str}
+        @param  channel:    The channel we were kicked from.
+
+        @type   kicker:     C{str}
+        @param  kicker:     The user that kicked us.
+
+        @type   message:    C{str}
+        @param  message:    The kick message.
         """
         self._fire_event(irc.on_client_kicked, channel=channel, kicker=kicker, message=message)
 
     def nickChanged(self, nick):
         """
         Called when my nick has been changed.
+
+        @type   nick:   C{str}
+        @param  nick:   Our new nick
         """
         self.nickname = nick
         self._fire_event(irc.on_client_nick, nick=nick)
@@ -264,45 +304,98 @@ class EneIRC(IRCClient):
     def userJoined(self, user, channel):
         """
         Called when I see another user joining a channel.
+
+        @type   user:       C{str}
+        @param  user:       The user joining the channel.
+
+        @type   channel:    C{str}
+        @param  channel:    The channel being joined.
         """
         self._fire_event(irc.on_channel_join, user=user, channel=channel)
 
     def userLeft(self, user, channel):
         """
         Called when I see another user leaving a channel.
+
+        @type   user:       C{str}
+        @param  user:       The user parting the channel.
+
+        @type   channel:    C{str}
+        @param  channel:    The channel being parted.
         """
         self._fire_event(irc.on_channel_part, user=user, channel=channel)
 
     def userQuit(self, user, quitMessage):
         """
         Called when I see another user disconnect from the network.
+
+        @type   user:           C{str}
+        @param  user:           The user quitting the network.
+
+        @type   quitMessage:    C{str}
+        @param  quitMessage:    The quit message.
         """
         self._fire_event(irc.on_user_quit, user=user, quit_message=quitMessage)
 
     def userKicked(self, kickee, channel, kicker, message):
         """
         Called when I observe someone else being kicked from a channel.
+
+        @type   kickee:     C{str}
+        @param  kickee:     The user being kicked.
+
+        @type   channel:    C{str}
+        @param  channel:    The channel the user is being kicked from.
+
+        @type   kicker:     C{str}
+        @param  kicker:     The user that is kicking.
+
+        @type   message:    C{str}
+        @param  message:    The kick message.
         """
         self._fire_event(irc.on_channel_kick, kickee=kickee, channel=channel, kicker=kicker, message=message)
 
     def action(self, user, channel, data):
         """
         Called when I see a user perform an ACTION on a channel.
-        TODO: Route to custom events
+        @TODO: Route to custom events
+
+        @type   user:       C{str}
+        @param  user:       The user performing the action.
+
+        @type   channel:    C{str}
+        @param  channel:    The user performing the action.
+
+        @type   data:       C{str}
+        @param  data:       The action being performed.
         """
         self._fire_event(irc.on_action, user=user, channel=channel, data=data)
 
     def topicUpdated(self, user, channel, newTopic):
         """
         In channel, user changed the topic to newTopic.
-
         Also called when first joining a channel.
+
+        @type   user:       C{str} or C{None}
+        @param  user:       The user updating the topic, if relevant.
+
+        @type   channel:    C{str}
+        @param  channel:    The channel the topic is being changed on.
+
+        @type   newTopic:   C{str}
+        @param  newTopic:   The updated topic.
         """
         self._fire_event(irc.on_channel_topic_updated, user=user, channel=channel, new_topic=newTopic)
 
     def userRenamed(self, oldname, newname):
         """
         A user changed their name from oldname to newname.
+
+        @type   oldname:    C{str}
+        @param  oldname:    The users old nick.
+
+        @type   newname:    C{str}
+        @param  newname:    The users new nick.
         """
         self._fire_event(irc.on_user_nick_changed, old_nick=oldname, new_nick=newname)
 
@@ -316,6 +409,8 @@ class EneIRC(IRCClient):
             '\\n'.join(motd)
 
         to get a nicely formatted string.
+
+        @type   motd:   C{list}
         """
         self._fire_event(irc.on_server_motd, motd=motd)
 
@@ -370,11 +465,7 @@ class EneIRC(IRCClient):
         made. Unrecognized CTCP queries invoke L{IRCClient.ctcpUnknownQuery}.
         """
         self._fire_event(irc.on_ctcp, user=user, channel=channel, messages=messages)
-        IRCClient.ctcpQuery(self, user=user, channel=channel, messages=messages)
-
-    def ctcpQuery_ACTION(self, user, channel, data):
-        self._fire_event(irc.on_ctcp_action, user=user, channel=channel, data=data)
-        IRCClient.ctcpQuery(self, user, channel, data)
+        IRCClient.ctcpQuery(self, user, channel, messages)
 
     def ctcpQuery_PING(self, user, channel, data):
         self._fire_event(irc.on_ctcp_ping, user=user, channel=channel, data=data)
@@ -398,43 +489,43 @@ class EneIRC(IRCClient):
         self._fire_event(irc.on_ctcp_time, user=user, channel=channel, data=data)
         IRCClient.ctcpQuery_TIME(self, user, channel, data)
 
-    # def lineReceived(self, line):
-    #     pass
-    #
-    # def dccSend(self, user, file):
-    #     pass
-    #
-    # def rawDataReceived(self, data):
-    #     pass
-
 
 class PluginAbstract(object):
+    """
+    Plugin abstract class.
 
+    This is the class that all third-party plugins should extend.
+    """
     __ENE_IRC_PLUGIN_NAME__ = None
     __ENE_IRC_PLUGIN_DEFAULT_PERMISSION__ = 'guest'
 
     def __init__(self, ene):
         """
-        DateTime plugin
-        @type ene:  ene_irc.EneIRC
+        @type   ene:    C{ene_irc.EneIRC}
         """
         self.ene = ene
 
 
+# noinspection PyMethodMayBeStatic
 class _Registry(object):
+    """
+    Plugin commands / events registry.
 
+    This class is used to contain bindings to plugin classes as well as command and event functions.
+    """
     def __init__(self):
         self._commands = {}
         self._events = {}
         self._log = logging.getLogger('ene_irc.registry')
 
-    # noinspection PyMethodMayBeStatic
     def _get_plugin_name(self, cls):
         """
-        Get the plugin name from its class
-        @param  cls:    Plugin class
-        @raise  PluginError: Raised if the plugin class is not a sub-class of PluginAbstract
-        @return: str
+        Get the plugin name from its class.
+
+        @param  cls:    The plugin class.
+
+        @raise  PluginError:    Raised if the plugin class is not a sub-class of PluginAbstract.
+        @rtype: C{str}
         """
         # Make sure we have a valid plugin class
         if not issubclass(cls, PluginAbstract):
@@ -444,14 +535,19 @@ class _Registry(object):
 
     def bind_command(self, name, cls, func, params):
         """
-        Bind a command to the registry
-        @param  name:   Name of the command
-        @type   name:   str
-        @param  cls:    Plugin class
-        @param  func:   Command function
-        @param  params: Arbitrary command configuration attributes
+        Bind a command to the registry.
+
+        @type   name:   C{str}
+        @param  name:   Name of the command.
+
+        @param  cls:    The plugin class.
+
+        @param  func:   The command function.
+
         @type   params: dict
-        @raise  PluginCommandExistsError: Raised if this plugin has already been mapped
+        @param  params: Arbitrary command configuration attributes.
+
+        @raise  PluginCommandExistsError:   Raised if this plugin has already been mapped
         """
         self._log.info('Binding new plugin command %s to %s (%s)', name, str(cls), str(func))
 
@@ -474,14 +570,19 @@ class _Registry(object):
 
     def bind_event(self, name, cls, func, params):
         """
-        Bind a command to the registry
-        @param  name:   Name of the event
+        Bind an event to the registry.
+
         @type   name:   str
-        @param  cls:    Plugin class
-        @param  func:   Command function
-        @param  params: Arbitrary command configuration attributes
+        @param  name:   Name of the event.
+
+        @param  cls:    The plugin class.
+
+        @param  func:   The command function.
+
         @type   params: dict
-        @raise  PluginCommandExistsError: Raised if this plugin has already been mapped
+        @param  params: Arbitrary command configuration attributes.
+
+        @raise  PluginCommandExistsError:   Raised if this plugin has already been mapped.
         """
         self._log.info('Binding new plugin event %s to %s (%s)', name, str(cls), str(func))
 
@@ -500,7 +601,15 @@ class _Registry(object):
         self._events[plugin_name][name].append((cls, func, params))
 
     def get_events(self, name):
-        self._log.info('Retrieving events: %s', name)
+        """
+        Get all bound events.
+
+        @type   name:   C{str}
+        @param  name:   Name of the event to retrieve bindings for.
+
+        @rtype: C{list}
+        """
+        self._log.debug('Retrieving events: %s', name)
         all_events = []
 
         # Iterate our plugins and search for matching events
@@ -520,7 +629,8 @@ class _Registry(object):
 
 
 class TestFactory(protocol.ClientFactory):
-    """A factory for LogBots.
+    """
+    A factory for generating test connections.
 
     A new protocol instance will be created each time we connect to the server.
     """
