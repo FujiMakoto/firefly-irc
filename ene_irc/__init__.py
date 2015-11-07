@@ -1,7 +1,9 @@
 import importlib
 import logging
 import os
+from ConfigParser import ConfigParser
 import pkg_resources
+import sys
 from twisted.internet import reactor, protocol
 from twisted.words.protocols.irc import IRCClient
 import venusian
@@ -49,7 +51,7 @@ class EneIRC(IRCClient):
         """@type : ene_irc.languages.interface.LanguageInterface"""
         self._load_language_interface(language)
 
-        self.registry = _Registry()
+        self.registry = _Registry(self)
         self._setup()
 
         self.plugins = pkg_resources.get_entry_map('ene_irc', 'ene_irc.plugins')
@@ -503,7 +505,24 @@ class PluginAbstract(object):
         """
         @type   ene:    C{ene_irc.EneIRC}
         """
+        self.log = logging.getLogger('ene_irc.plugins.{0}'.format(type(self).__name__.lower()))
         self.ene = ene
+        class_path = sys.modules.get(self.__class__.__module__).__file__
+        self.plugin_path = os.path.dirname(os.path.realpath(class_path))
+        self.config = ConfigParser()
+        self._load_configuration()
+
+    def _load_configuration(self):
+        config_path = os.path.join(self.plugin_path, 'plugin.cfg')
+        self.log.debug('Attempting to load plugin configuration: %s', config_path)
+
+        if os.path.isfile(config_path):
+            self.config = ConfigParser()
+            self.config.read(config_path)
+            self.log.info('Successfully loaded plugin configuration')
+            return
+
+        self.log.info('No plugin configuration file could be found')
 
 
 # noinspection PyMethodMayBeStatic
@@ -513,25 +532,31 @@ class _Registry(object):
 
     This class is used to contain bindings to plugin classes as well as command and event functions.
     """
-    def __init__(self):
+    def __init__(self, ene):
+        self.ene = ene
+
         self._commands = {}
         self._events = {}
+        self._plugins = {}
         self._log = logging.getLogger('ene_irc.registry')
 
-    def _get_plugin_name(self, cls):
+    def _get_plugin(self, cls):
         """
-        Get the plugin name from its class.
+        Get the plugin name and loaded class object.
 
         @param  cls:    The plugin class.
 
         @raise  PluginError:    Raised if the plugin class is not a sub-class of PluginAbstract.
-        @rtype: C{str}
+        @rtype: C{tuple of (str, object)}
         """
         # Make sure we have a valid plugin class
         if not issubclass(cls, PluginAbstract):
             raise PluginError('Plugin class must extend ene_irc.PluginAbstract')
 
-        return cls.__ENE_IRC_PLUGIN_NAME__ or cls.__name__
+        name = cls.__ENE_IRC_PLUGIN_NAME__ or cls.__name__
+        obj  = self._plugins[name] if name in self._plugins else cls(self.ene)
+
+        return name, obj
 
     def bind_command(self, name, cls, func, params):
         """
@@ -551,8 +576,8 @@ class _Registry(object):
         """
         self._log.info('Binding new plugin command %s to %s (%s)', name, str(cls), str(func))
 
-        # Make sure an entry for our plugin exists
-        plugin_name = self._get_plugin_name(cls)
+        # Get our plugin data
+        plugin_name, plugin_obj = self._get_plugin(cls)
 
         if plugin_name not in self._commands:
             self._commands[plugin_name] = {}
@@ -563,7 +588,7 @@ class _Registry(object):
                                            str(self._commands[plugin_name][name][0]))
 
         # Map the command
-        self._commands[plugin_name][name] = (cls, func, params)
+        self._commands[plugin_name][name] = (plugin_obj, func, params)
 
     def get_command(self, name):
         pass
@@ -586,8 +611,8 @@ class _Registry(object):
         """
         self._log.info('Binding new plugin event %s to %s (%s)', name, str(cls), str(func))
 
-        # Make sure an entry for our plugin exists
-        plugin_name = self._get_plugin_name(cls)
+        # Get our plugin data
+        plugin_name, plugin_obj = self._get_plugin(cls)
 
         if plugin_name not in self._events:
             self._log.debug('Creating new event entry for plugin: %s', plugin_name)
@@ -598,7 +623,7 @@ class _Registry(object):
             self._events[plugin_name][name] = []
 
         # Map the command
-        self._events[plugin_name][name].append((cls, func, params))
+        self._events[plugin_name][name].append((plugin_obj, func, params))
 
     def get_events(self, name):
         """

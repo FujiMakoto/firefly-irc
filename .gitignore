@@ -140,3 +140,6 @@ atlassian-ide-plugin.xml
 com_crashlytics_export_strings.xml
 crashlytics.properties
 crashlytics-build.properties
+
+# Arbitrary files and directories that may be created during development
+logs
