@@ -8,6 +8,7 @@ from twisted.internet import reactor, protocol
 from twisted.words.protocols.irc import IRCClient
 import venusian
 from ene_irc import plugins, irc
+from ene_irc.containers import ServerInfo
 from appdirs import user_config_dir, user_data_dir
 from errors import LanguageImportError, PluginCommandExistsError, PluginError
 
@@ -52,6 +53,7 @@ class EneIRC(IRCClient):
         self._load_language_interface(language)
 
         self.registry = _Registry(self)
+        self.server_info = ServerInfo()
         self._setup()
 
         self.plugins = pkg_resources.get_entry_map('ene_irc', 'ene_irc.plugins')
@@ -168,6 +170,7 @@ class EneIRC(IRCClient):
         @type   options: C{list} of C{str}
         @param  options: Descriptions of features or limits of the server, possibly in the form "NAME=VALUE".
         """
+        self.server_info.parse_supports(options)
         self._fire_event(irc.on_server_supports, options=options)
 
     def luserChannels(self, channels):
