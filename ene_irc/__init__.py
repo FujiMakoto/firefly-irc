@@ -8,7 +8,7 @@ from twisted.internet import reactor, protocol
 from twisted.words.protocols.irc import IRCClient
 import venusian
 from ene_irc import plugins, irc
-from ene_irc.containers import ServerInfo
+from ene_irc.containers import ServerInfo, Source
 from appdirs import user_config_dir, user_data_dir
 from errors import LanguageImportError, PluginCommandExistsError, PluginError
 
@@ -204,7 +204,7 @@ class EneIRC(IRCClient):
         Called when I have a message from a user to me or a channel.
         TODO: Route to custom events
         """
-        self._fire_event(irc.on_message, user=user, channel=channel, message=message)
+        self._fire_event(irc.on_message, user=user, source=Source(self, channel), message=message)
 
     def joined(self, channel):
         """
@@ -236,7 +236,7 @@ class EneIRC(IRCClient):
             loops between clients automatically sending something in
             response to something it received.
         """
-        self._fire_event(irc.on_notice, user=user, channel=channel, message=message)
+        self._fire_event(irc.on_notice, user=user, source=Source(self, channel), message=message)
 
     def modeChanged(self, user, channel, set, modes, args):
         """
@@ -260,7 +260,7 @@ class EneIRC(IRCClient):
         @type   args: C{tuple}
         @param  args: Any additional information required for the mode change.
         """
-        self._fire_event(irc.on_mode_changed, user=user, channel=channel, set=set,modes=modes, args=args)
+        self._fire_event(irc.on_mode_changed, user=user, source=Source(self, channel), set=set, modes=modes, args=args)
 
     def pong(self, user, secs):
         """
@@ -369,12 +369,12 @@ class EneIRC(IRCClient):
         @param  user:       The user performing the action.
 
         @type   channel:    C{str}
-        @param  channel:    The user performing the action.
+        @param  channel:    The user or channel.
 
         @type   data:       C{str}
         @param  data:       The action being performed.
         """
-        self._fire_event(irc.on_action, user=user, channel=channel, data=data)
+        self._fire_event(irc.on_action, user=user, source=Source(self, channel), data=data)
 
     def topicUpdated(self, user, channel, newTopic):
         """

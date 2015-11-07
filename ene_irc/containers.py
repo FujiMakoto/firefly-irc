@@ -256,3 +256,72 @@ class ServerInfo(object):
         """
         self.max_away_length = int(value)
         self._log.debug('Max away length set: %s', self.max_away_length)
+
+
+class Source(object):
+    """
+    Message source container.
+    """
+    # Type constants
+    CHANNEL = 'channel'
+    USER    = 'user'
+
+    def __init__(self, ene, source):
+        """
+        @type   ene:    ene_irc.EneIRC
+        @type   source: str
+        """
+        self.ene = ene
+        self.source = source
+        self._log = logging.getLogger('ene_irc.source')
+
+        # Source type, either channel or user.
+        self.type = None
+
+        # Only applicable to channels; contains the prefix used by the channel.
+        self.prefix = None
+
+        # The name of the source. Either the users name, or the name of the channel without its prefix.
+        self.name = None
+
+        self._parse_source()
+
+    def _parse_source(self):
+        """
+        Parse the source and determine if it's from a user or a channel
+        """
+        chan_types = self.ene.server_info.channel_types or ['#']
+
+        for chan_type in chan_types:
+            if self.source.startswith(chan_type):
+                self.type   = self.CHANNEL
+                self.prefix = chan_type
+
+                # Note that we intentionally strip all instances of the prefix here. This means both #foo and ##foo
+                # will result in the name "foo" being returned. Please be sure you account for this.
+                self.name   = self.source.lstrip(chan_type)
+
+                self._log.debug('Registering source %s as a channel (Name: %s - Prefix: %s)',
+                                self.source, self.name, self.prefix)
+                break
+        else:
+            self.type = self.USER
+            self.name = self.source
+
+            self._log.debug('Registering source %s as a user', self.source)
+
+    @property
+    def is_channel(self):
+        """
+        Source is a channel
+        @rtype: bool
+        """
+        return self.type == self.CHANNEL
+
+    @property
+    def is_user(self):
+        """
+        Source is a user
+        @rtype: bool
+        """
+        return self.type == self.USER
