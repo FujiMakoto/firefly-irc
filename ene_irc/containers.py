@@ -1,5 +1,6 @@
-import re
 import logging
+import socket
+import re
 
 
 class ServerInfo(object):
@@ -269,7 +270,7 @@ class Source(object):
     def __init__(self, ene, source):
         """
         @type   ene:    ene_irc.EneIRC
-        @type   source: str
+        @type   source: C{str}
         """
         self.ene = ene
         self.source = source
@@ -288,7 +289,7 @@ class Source(object):
 
     def _parse_source(self):
         """
-        Parse the source and determine if it's from a user or a channel
+        Parse the source and determine if it's from a user or a channel.
         """
         chan_types = self.ene.server_info.channel_types or ['#']
 
@@ -313,15 +314,93 @@ class Source(object):
     @property
     def is_channel(self):
         """
-        Source is a channel
-        @rtype: bool
+        Source is a channel.
+        @rtype: C{bool}
         """
         return self.type == self.CHANNEL
 
     @property
     def is_user(self):
         """
-        Source is a user
-        @rtype: bool
+        Source is a user.
+        @rtype: C{bool}
         """
         return self.type == self.USER
+
+
+class Hostmask(object):
+    """
+    Client hostmask container.
+    """
+    def __init__(self, hostmask):
+        """
+        @type   hostmask:   C{str}
+        """
+        self._log = logging.getLogger('ene_irc.client')
+        self._regex = re.compile('(?P<nick>[^!]+)!(?P<username>[^@]+)@(?P<host>.+)')
+
+        self.hostmask = hostmask
+        self.nick     = None
+        self.username = None
+        self.host     = None
+        self._ip      = None
+
+        self._parse_hostmask()
+
+    def _parse_hostmask(self):
+        """
+        Parse the components of the hostmask.
+        """
+        self._log.debug('Attempting to parse hostmask components: %s', self.hostmask)
+        match = self._regex.match(self.hostmask)
+
+        # Make sure we have a valid hostmask.
+        if not match:
+            self._log.warn('Unrecognized hostmask format: %s', self.hostmask)
+            return
+
+        self.nick, self.username, self.host = match.groups()
+        self._log.debug('Hostmask components successfully parsed...')
+        self._log.debug('Nick: %s', self.nick)
+        self._log.debug('Username: %s', self.username)
+        self._log.debug('Host: %s', self.host)
+
+    def resolve_host(self, ignore_errors=True, ignore_cache=False):
+        """
+        Attempt to resolve the clients hostname.
+        Obviously, this won't work if the host is masked.
+
+        @type   ignore_errors:  C{bool}
+        @param  ignore_errors:  If True, False will be returned if resolution fails, otherwise expect a socket.error
+
+        @type   ignore_cache:   C{bool}
+        @param  ignore_cache:   Force resolution even if a cached result is available
+
+        @raise  socket.error:   Thrown if name resolution fails and ignore_errors is False.
+
+        @rtype: C{str or bool}
+        """
+        if not self.host:
+            self._log.warn('No host set, unable to resolve')
+
+        # Check if we've already resolved this host before
+        if self._ip and not ignore_cache:
+            self._log.debug('Returning cached host resolution: %s', self._ip)
+            return self._ip
+        # Check if we've previously failed to resolve this host
+        elif self._ip is False and not ignore_cache:
+            self._log.debug('Previously failed to resolve this host, returning None')
+            return self._ip
+
+        try:
+            self._ip = socket.gethostbyname(self.host)
+        except socket.error as e:
+            self._log.info('Could not resolve host %s (%s)', self.host, e.message)
+            self._ip = False
+
+            if not ignore_errors:
+                raise
+
+        _message = 'Host successfully resolved: %s' if self._ip else 'Unable to resolve host'
+        self._log.debug(_message, self._ip)
+        return self._ip

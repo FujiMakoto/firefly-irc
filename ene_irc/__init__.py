@@ -8,7 +8,7 @@ from twisted.internet import reactor, protocol
 from twisted.words.protocols.irc import IRCClient
 import venusian
 from ene_irc import plugins, irc
-from ene_irc.containers import ServerInfo, Source
+from ene_irc.containers import ServerInfo, Source, Hostmask
 from appdirs import user_config_dir, user_data_dir
 from errors import LanguageImportError, PluginCommandExistsError, PluginError
 
@@ -204,7 +204,7 @@ class EneIRC(IRCClient):
         Called when I have a message from a user to me or a channel.
         TODO: Route to custom events
         """
-        self._fire_event(irc.on_message, user=user, source=Source(self, channel), message=message)
+        self._fire_event(irc.on_message, user=Hostmask(user), source=Source(self, channel), message=message)
 
     def joined(self, channel):
         """
@@ -236,7 +236,7 @@ class EneIRC(IRCClient):
             loops between clients automatically sending something in
             response to something it received.
         """
-        self._fire_event(irc.on_notice, user=user, source=Source(self, channel), message=message)
+        self._fire_event(irc.on_notice, user=Hostmask(user), source=Source(self, channel), message=message)
 
     def modeChanged(self, user, channel, set, modes, args):
         """
@@ -260,7 +260,7 @@ class EneIRC(IRCClient):
         @type   args: C{tuple}
         @param  args: Any additional information required for the mode change.
         """
-        self._fire_event(irc.on_mode_changed, user=user, source=Source(self, channel), set=set, modes=modes, args=args)
+        self._fire_event(irc.on_mode_changed, user=Hostmask(user), source=Source(self, channel), set=set, modes=modes, args=args)
 
     def pong(self, user, secs):
         """
@@ -272,7 +272,7 @@ class EneIRC(IRCClient):
         @type   secs: C{float}
         @param  secs: Ping latency
         """
-        self._fire_event(irc.on_pong, user=user, secs=secs)
+        self._fire_event(irc.on_pong, user=Hostmask(user), secs=secs)
 
     def signedOn(self):
         """
@@ -316,7 +316,7 @@ class EneIRC(IRCClient):
         @type   channel:    C{str}
         @param  channel:    The channel being joined.
         """
-        self._fire_event(irc.on_channel_join, user=user, channel=channel)
+        self._fire_event(irc.on_channel_join, user=Hostmask(user), channel=channel)
 
     def userLeft(self, user, channel):
         """
@@ -328,7 +328,7 @@ class EneIRC(IRCClient):
         @type   channel:    C{str}
         @param  channel:    The channel being parted.
         """
-        self._fire_event(irc.on_channel_part, user=user, channel=channel)
+        self._fire_event(irc.on_channel_part, user=Hostmask(user), channel=channel)
 
     def userQuit(self, user, quitMessage):
         """
@@ -340,7 +340,7 @@ class EneIRC(IRCClient):
         @type   quitMessage:    C{str}
         @param  quitMessage:    The quit message.
         """
-        self._fire_event(irc.on_user_quit, user=user, quit_message=quitMessage)
+        self._fire_event(irc.on_user_quit, user=Hostmask(user), quit_message=quitMessage)
 
     def userKicked(self, kickee, channel, kicker, message):
         """
@@ -374,7 +374,7 @@ class EneIRC(IRCClient):
         @type   data:       C{str}
         @param  data:       The action being performed.
         """
-        self._fire_event(irc.on_action, user=user, source=Source(self, channel), data=data)
+        self._fire_event(irc.on_action, user=Hostmask(user), source=Source(self, channel), data=data)
 
     def topicUpdated(self, user, channel, newTopic):
         """
@@ -390,7 +390,7 @@ class EneIRC(IRCClient):
         @type   newTopic:   C{str}
         @param  newTopic:   The updated topic.
         """
-        self._fire_event(irc.on_channel_topic_updated, user=user, channel=channel, new_topic=newTopic)
+        self._fire_event(irc.on_channel_topic_updated, user=Hostmask(user), channel=channel, new_topic=newTopic)
 
     def userRenamed(self, oldname, newname):
         """
@@ -469,29 +469,29 @@ class EneIRC(IRCClient):
         Duplicated CTCP queries are ignored and no dispatch is
         made. Unrecognized CTCP queries invoke L{IRCClient.ctcpUnknownQuery}.
         """
-        self._fire_event(irc.on_ctcp, user=user, channel=channel, messages=messages)
+        self._fire_event(irc.on_ctcp, user=Hostmask(user), channel=channel, messages=messages)
         IRCClient.ctcpQuery(self, user, channel, messages)
 
     def ctcpQuery_PING(self, user, channel, data):
-        self._fire_event(irc.on_ctcp_ping, user=user, channel=channel, data=data)
+        self._fire_event(irc.on_ctcp_ping, user=Hostmask(user), channel=channel, data=data)
         IRCClient.ctcpQuery_PING(self, user, channel, data)
 
     def ctcpQuery_FINGER(self, user, channel, data):
-        self._fire_event(irc.on_ctcp_finger, user=user, channel=channel, data=data)
+        self._fire_event(irc.on_ctcp_finger, user=Hostmask(user), channel=channel, data=data)
         IRCClient.ctcpQuery_FINGER(self, user, channel, data)
 
     def ctcpQuery_VERSION(self, user, channel, data):
-        self._fire_event(irc.on_ctcp_version, user=user, channel=channel, data=data)
+        self._fire_event(irc.on_ctcp_version, user=Hostmask(user), channel=channel, data=data)
 
     def ctcpQuery_SOURCE(self, user, channel, data):
-        self._fire_event(irc.on_ctcp_source, user=user, channel=channel, data=data)
+        self._fire_event(irc.on_ctcp_source, user=Hostmask(user), channel=channel, data=data)
 
     def ctcpQuery_USERINFO(self, user, channel, data):
-        self._fire_event(irc.on_ctcp_userinfo, user=user, channel=channel, data=data)
+        self._fire_event(irc.on_ctcp_userinfo, user=Hostmask(user), channel=channel, data=data)
         IRCClient.ctcpQuery_USERINFO(self, user, channel, data)
 
     def ctcpQuery_TIME(self, user, channel, data):
-        self._fire_event(irc.on_ctcp_time, user=user, channel=channel, data=data)
+        self._fire_event(irc.on_ctcp_time, user=Hostmask(user), channel=channel, data=data)
         IRCClient.ctcpQuery_TIME(self, user, channel, data)
 
 
