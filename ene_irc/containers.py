@@ -258,6 +258,12 @@ class ServerInfo(object):
         """
         self.max_away_length = int(value)
         self._log.debug('Max away length set: %s', self.max_away_length)
+        
+    def __repr__(self):
+        return '<EneIRC Container: ServerInfo for {s}>'.format(s=self.network)
+    
+    def __str__(self):
+        return self.network
 
 
 class Destination(object):
@@ -287,31 +293,31 @@ class Destination(object):
         # The name of the source. Either the users name, or the name of the channel without its prefix.
         self.name = None
 
-        self._parse_source()
+        self._parse_destination()
 
-    def _parse_source(self):
+    def _parse_destination(self):
         """
-        Parse the source and determine if it's from a user or a channel.
+        Parse the destination and determine if it's from a user or a channel.
         """
         chan_types = self.ene.server_info.channel_types or ['#']
 
         for chan_type in chan_types:
-            if self.source.startswith(chan_type):
+            if self.raw.startswith(chan_type):
                 self.type   = self.CHANNEL
                 self.prefix = chan_type
 
                 # Note that we intentionally strip all instances of the prefix here. This means both #foo and ##foo
                 # will result in the name "foo" being returned. Please be sure you account for this.
-                self.name   = self.source.lstrip(chan_type)
+                self.name   = self.raw.lstrip(chan_type)
 
                 self._log.debug('Registering source %s as a channel (Name: %s - Prefix: %s)',
-                                self.source, self.name, self.prefix)
+                                self.raw, self.name, self.prefix)
                 break
         else:
             self.type = self.USER
-            self.name = self.source
+            self.name = self.raw
 
-            self._log.debug('Registering source %s as a user', self.source)
+            self._log.debug('Registering source %s as a user', self.raw)
 
     @property
     def is_channel(self):
@@ -330,7 +336,10 @@ class Destination(object):
         return self.type == self.USER
 
     def __repr__(self):
-        return '<EneIRC Container: Destination(EneIRC(), {d})>'.format(d=self.raw)
+        return '<EneIRC Container: Destination(ene, {d})>'.format(d=self.raw)
+
+    def __str__(self):
+        return self.raw
 
 
 class Hostmask(object):
@@ -409,6 +418,12 @@ class Hostmask(object):
         _message = 'Host successfully resolved: %s' if self._ip else 'Unable to resolve host'
         self._log.debug(_message, self._ip)
         return self._ip
+
+    def __repr__(self):
+        return '<EneIRC Container: Hostmask("{h}")>'.format(h=self.hostmask)
+
+    def __str__(self):
+        return self.hostmask
 
 
 class Message(object):
