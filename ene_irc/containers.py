@@ -1,6 +1,7 @@
 import logging
 import socket
 import re
+from ircmessage import unstyle
 
 
 class ServerInfo(object):
@@ -259,7 +260,7 @@ class ServerInfo(object):
         self._log.debug('Max away length set: %s', self.max_away_length)
 
 
-class Source(object):
+class Destination(object):
     """
     Message source container.
     """
@@ -267,13 +268,14 @@ class Source(object):
     CHANNEL = 'channel'
     USER    = 'user'
 
-    def __init__(self, ene, source):
+    def __init__(self, ene, destination):
         """
-        @type   ene:    ene_irc.EneIRC
-        @type   source: C{str}
+        @type   ene:            ene_irc.EneIRC
+
+        @type   destination:    C{str}
         """
         self.ene = ene
-        self.source = source
+        self.raw = destination
         self._log = logging.getLogger('ene_irc.source')
 
         # Source type, either channel or user.
@@ -326,6 +328,9 @@ class Source(object):
         @rtype: C{bool}
         """
         return self.type == self.USER
+
+    def __repr__(self):
+        return '<EneIRC Container: Destination(EneIRC(), {d})>'.format(d=self.raw)
 
 
 class Hostmask(object):
@@ -404,3 +409,65 @@ class Hostmask(object):
         _message = 'Host successfully resolved: %s' if self._ip else 'Unable to resolve host'
         self._log.debug(_message, self._ip)
         return self._ip
+
+
+class Message(object):
+
+    # Message types
+    MESSAGE = "message"
+    NOTICE  = "notice"
+    ACTION  = "action"
+
+    def __init__(self, message, destination, source, message_type=MESSAGE):
+        """
+        @type   message:        str
+
+        @type   destination:    Destination
+        @param  destination:    The message destination
+
+        @type   source:         Hostmask
+        @param  source:         The source (user) that sent the message
+
+        @type   message_type:   str
+        @param  message_type:   The message type. Either message, notice or action
+        """
+        self.raw = message
+        self.stripped = unstyle(message)
+        self.destination = destination
+        self.source = source
+        self.type = message_type
+
+    @property
+    def is_message(self):
+        """
+        Message type is message.
+        @rtype: C{bool}
+        """
+        return self.type == self.MESSAGE
+
+    @property
+    def is_notice(self):
+        """
+        Message type is notice.
+        @rtype: C{bool}
+        """
+        return self.type == self.NOTICE
+
+    @property
+    def is_action(self):
+        """
+        Message type is action.
+        @rtype: C{bool}
+        """
+        return self.type == self.ACTION
+
+    def __repr__(self):
+        return '<EneIRC Container: Message("{m}", Destination(ene, "{d}"), Hostmask("{h}"), "{t}")>'.format(
+            m=self.stripped.replace('"', '\\"'),
+            d=self.destination.raw,
+            h=self.source.hostmask,
+            t=self.type
+        )
+
+    def __str__(self):
+        return self.stripped
