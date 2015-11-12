@@ -8,7 +8,7 @@ from twisted.internet import reactor, protocol
 from twisted.words.protocols.irc import IRCClient
 import venusian
 from ene_irc import plugins, irc
-from ene_irc.containers import ServerInfo, Source, Hostmask
+from ene_irc.containers import ServerInfo, Destination, Hostmask, Message
 from appdirs import user_config_dir, user_data_dir
 from errors import LanguageImportError, PluginCommandExistsError, PluginError
 
@@ -202,31 +202,45 @@ class EneIRC(IRCClient):
     def privmsg(self, user, channel, message):
         """
         Called when I have a message from a user to me or a channel.
-        TODO: Route to custom events
+
+        @type   user:       C{str}
+        @param  user:       Hostmask of the sender.
+
+        @type   channel:    C{str}
+        @param  channel:    Name of the source channel or user nick.
+
+        @type   message:    C{str}
         """
-        self._fire_event(irc.on_message, user=Hostmask(user), source=Source(self, channel), message=message)
+        message = Message(message, Destination(self, channel), Hostmask(user))
+        self._fire_event(irc.on_message, message=message)
+
+        # Fire custom events
+        if message.destination.is_channel:
+            self.channelMessage(message)
+        elif message.destination.is_user:
+            self.privateMessage(message)
 
     def joined(self, channel):
         """
         Called when I finish joining a channel.
 
-        channel has the starting character (C{'#'}, C{'&'}, C{'!'}, or C{'+'}) intact.
+        @type   channel:    C{str}
+        @param  channel:    Name of the channel.
         """
-        self._fire_event(irc.on_client_join, channel=channel)
-        self.ping('Makoto')
+        self._fire_event(irc.on_client_join, channel=Destination(self, channel))
 
     def left(self, channel):
         """
         Called when I have left a channel.
 
-        channel has the starting character (C{'#'}, C{'&'}, C{'!'}, or C{'+'}) intact.
+        @type   channel:    C{str}
+        @param  channel:    Name of the channel.
         """
-        self._fire_event(irc.on_client_part)
+        self._fire_event(irc.on_client_part, channel=Destination(self, channel))
 
     def noticed(self, user, channel, message):
         """
         Called when I have a notice from a user to me or a channel.
-        TODO: Route to custom events
 
         If the client makes any automated replies, it must not do so in response to a NOTICE message, per the RFC::
 
@@ -235,12 +249,28 @@ class EneIRC(IRCClient):
             NOTICE message. [...] The object of this rule is to avoid
             loops between clients automatically sending something in
             response to something it received.
+
+        @type   user:       C{str}
+        @param  user:       Hostmask of the sender.
+
+        @type   channel:    C{str}
+        @param  channel:    Name of the source channel or user nick.
+
+        @type   message:    C{str}
         """
-        self._fire_event(irc.on_notice, user=Hostmask(user), source=Source(self, channel), message=message)
+        notice = Message(message, Destination(self, channel), Hostmask(user), Message.NOTICE)
+        self._fire_event(irc.on_notice, notice=notice)
+
+        # Fire custom events
+        if notice.destination.is_channel:
+            self.channelNotice(notice)
+        elif notice.destination.is_user:
+            self.privateNotice(notice)
 
     def modeChanged(self, user, channel, set, modes, args):
         """
         Called when users or channel's modes are changed.
+        TODO
 
         @type   user: C{str}
         @param  user: The user and hostmask which instigated this change.
@@ -260,7 +290,7 @@ class EneIRC(IRCClient):
         @type   args: C{tuple}
         @param  args: Any additional information required for the mode change.
         """
-        self._fire_event(irc.on_mode_changed, user=Hostmask(user), source=Source(self, channel), set=set, modes=modes, args=args)
+        self._fire_event(irc.on_mode_changed, user=Hostmask(user), source=Destination(self, channel), set=set, modes=modes, args=args)
 
     def pong(self, user, secs):
         """
@@ -363,7 +393,6 @@ class EneIRC(IRCClient):
     def action(self, user, channel, data):
         """
         Called when I see a user perform an ACTION on a channel.
-        @TODO: Route to custom events
 
         @type   user:       C{str}
         @param  user:       The user performing the action.
@@ -374,7 +403,13 @@ class EneIRC(IRCClient):
         @type   data:       C{str}
         @param  data:       The action being performed.
         """
-        self._fire_event(irc.on_action, user=Hostmask(user), source=Source(self, channel), data=data)
+        action = Message(data, Destination(self, channel), Hostmask(user), Message.ACTION)
+        self._fire_event(irc.on_action, action=action)
+
+        if action.destination.is_channel:
+            self.channelAction(action)
+        elif action.destination.is_user:
+            self.privateAction(action)
 
     def topicUpdated(self, user, channel, newTopic):
         """
@@ -418,6 +453,64 @@ class EneIRC(IRCClient):
         @type   motd:   C{list}
         """
         self._fire_event(irc.on_server_motd, motd=motd)
+
+    ################################
+    # Custom IRC Events            #
+    ################################
+
+    def channelMessage(self, message):
+        """
+        Called when I have a message from a user to a channel.
+
+        @type   message:    Message
+        @param  message:    The message container object.
+        """
+        self._fire_event(irc.on_channel_message, message=message)
+
+    def privateMessage(self, message):
+        """
+        Called when I have a message from a user to me.
+
+        @type   message:    Message
+        @param  message:    The message container object.
+        """
+        self._fire_event(irc.on_private_message, message=message)
+
+    def channelNotice(self, notice):
+        """
+        Called when I have a notice from a user to a channel.
+
+        @type   notice: Message
+        @param  notice: The notice (message) container object.
+        """
+        self._fire_event(irc.on_channel_notice, notice=notice)
+
+    def privateNotice(self, notice):
+        """
+        Called when I have a notice from a user to me.
+
+        @type   notice: Message
+        @param  notice: The notice (message) container object.
+        """
+        self._fire_event(irc.on_private_notice, notice=notice)
+
+    def channelAction(self, action):
+        """
+        Called when I see a user perform an ACTION on a channel.
+
+        @type   action: Message
+        @param  action: The action (message) container object.
+        """
+        self._fire_event(irc.on_channel_action, action=action)
+
+    def privateAction(self, action):
+        """
+        Called when I see a user perform an ACTION to me.
+
+        @type   action: Message
+        @param  action: The action (message) container object.
+        """
+        self._fire_event(irc.on_private_action, action=action)
 
     ################################
     # Low-level IRC Events         #
