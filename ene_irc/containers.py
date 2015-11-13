@@ -1,7 +1,73 @@
+import ene_irc
 import logging
 import socket
 import re
 from ircmessage import unstyle
+
+
+class Server(object):
+
+    def __init__(self, hostname, config):
+        """
+        @type   hostname:   str
+        @param  hostname:   Server hostname
+
+        @type   config:     ConfigParser.ConfigParser
+        @param  config:     Server configuration instance
+        """
+        self._log = logging.getLogger('ene_irc.server')
+        self._log.info('Loading %s server configuration', hostname)
+        self._config = config
+
+        self.hostname       = hostname
+        self.enabled        = config.getboolean(hostname, 'Enabled')
+        self.auto_connect   = config.getboolean(hostname, 'Enabled')
+        self.nick           = config.get(hostname, 'Nick')
+        self.username       = config.get(hostname, 'Username')
+        self.realname       = config.get(hostname, 'Realname')
+        self.password       = config.get(hostname, 'Password')
+        self.port           = config.getint(hostname, 'Port')
+        self.ssl            = config.getboolean(hostname, 'SSL')
+
+        self.channels = []
+        self._load_channels()
+
+    def _load_channels(self):
+        config_filename = re.sub('\W', '_', self.hostname)
+
+        # Attempt to load the server configuration
+        try:
+            config = ene_irc.EneIRC.load_configuration(config_filename, basedir='servers', default='default')
+        except ValueError:
+            self._log.info('%s has no server configuration file present', self.hostname)
+            return
+
+        channels = config.sections()
+        for channel in channels:
+            self.channels.append(Channel(self, channel, config))
+
+
+class Channel(object):
+
+    def __init__(self, server, name, config):
+        """
+        @type   server: Server
+        @param  server: The server this channel is on.
+
+        @type   name:   str
+        @param  name:   Channel name (with prefix)
+
+        @type   config: ConfigParser.ConfigParser
+        @param  config: Channel configuration instance
+        """
+        self._log = logging.getLogger('ene_irc.channel')
+        self._log.info('Loading %s channel configuration for %s', name, server.hostname)
+        self._config = config
+
+        self.server     = server
+        self.name       = name
+        self.autojoin   = config.getboolean(name, 'Autojoin')
+        self.password   = config.get(name, 'Password')
 
 
 class ServerInfo(object):

@@ -1,6 +1,8 @@
 import importlib
 import logging
 import os
+import shutil
+import appdirs
 from ConfigParser import ConfigParser
 import pkg_resources
 import sys
@@ -9,7 +11,6 @@ from twisted.words.protocols.irc import IRCClient
 import venusian
 from ene_irc import plugins, irc
 from ene_irc.containers import ServerInfo, Destination, Hostmask, Message
-from appdirs import user_config_dir, user_data_dir
 from errors import LanguageImportError, PluginCommandExistsError, PluginError
 
 __author__     = "Makoto Fujimoto"
@@ -27,38 +28,109 @@ class EneIRC(IRCClient):
     # Default nick
     nickname = "Ene"
 
-    def __init__(self, language='aml', log_level=logging.DEBUG):
+    def __init__(self, server, language='aml'):
         """
         @type   language:   C{str}
         @param  language:   The language engine to use for this instance.
-
-        @type   log_level:  C{int}
-        @param  log_level:  logging log level
         """
         # Set up logging
         self._log = logging.getLogger('ene_irc')
-        self._log.setLevel(log_level)
-        log_formatter = logging.Formatter("[%(asctime)s] %(levelname)s.%(name)s: %(message)s")
-        console_logger = logging.StreamHandler()
-        console_logger.setLevel(log_level)
-        console_logger.setFormatter(log_formatter)
-        self._log.addHandler(console_logger)
 
         # Ready our paths
-        self.config_dir = user_config_dir('Ene', 'Makoto', __version__)
-        self.data_dir = user_data_dir('Ene', 'Makoto', __version__)
+        self.config_dir = appdirs.user_config_dir('ene')
+        self.data_dir   = appdirs.user_data_dir('ene')
+        self.log_dir    = appdirs.user_log_dir('ene')
 
         self.language = None
         """@type : ene_irc.languages.interface.LanguageInterface"""
         self._load_language_interface(language)
 
+        # Set up our registry and server containers, then run setup
         self.registry = _Registry(self)
         self.server_info = ServerInfo()
+        self.server = server
         self._setup()
 
+        # Finally, now that everything is set up, load our plugins
         self.plugins = pkg_resources.get_entry_map('ene_irc', 'ene_irc.plugins')
         scanner = venusian.Scanner(ene=self)
         scanner.scan(plugins)
+
+    @staticmethod
+    def load_configuration(name, plugin=None, basedir=None, default=None):
+        """
+        Load a single configuration file.
+
+        @type   name:       str
+        @param  name:       Name of the configuration file *WITHOUT* the .cfg file extension
+
+        @type   plugin:     PluginAbstract or None
+        @param  plugin:     Plugin to load a configuration file from, or None to load a system configuration file.
+
+        @type   basedir:    str or None
+        @param  basedir:    Optional config path prefix
+
+        @type   default:    str or None
+        @param  default:    Name of the default configuration file. Defaults to the name argument.
+
+        @raise  ValueError: Raised if the supplied configuration file does not exist
+
+        @rtype: ConfigParser
+        """
+        log = logging.getLogger('ene_irc')
+        paths = []
+
+        ################################
+        # Default Configuration        #
+        ################################
+
+        app_path = plugin.plugin_path if plugin else os.path.join(os.path.dirname(os.path.realpath(__file__)), 'config')
+        if basedir:
+            app_path = os.path.join(app_path, basedir)
+
+        app_path = os.path.join(app_path, '{fn}.cfg'.format(fn=default or name))
+
+        # Make sure the configuration file actually exists
+        if not os.path.isfile(app_path):
+            raise ValueError('Default configuration file %s does not exist', app_path)
+
+        paths.append(app_path)
+
+        ################################
+        # User Configuration           #
+        ################################
+
+        user_path = os.path.join(appdirs.user_config_dir('ene'), 'config')
+        if plugin:
+            user_path = os.path.join(user_path, 'plugins', plugin.name)
+        if basedir:
+            user_path = os.path.join(user_path, basedir)
+
+        # Make sure the directory exists
+        if not os.path.isdir(user_path):
+            log.info('Creating user configuration directory: %s', user_path)
+            os.makedirs(user_path, 0o755)
+
+        user_path = os.path.join(user_path, '{fn}.cfg'.format(fn=name))
+        log.debug('Attempting to load user configuration file: %s', user_path)
+
+        if not os.path.isfile(user_path):
+            if default:
+                raise ValueError('User configuration file %s does not exist', app_path)  # TODO: Ambiguous exceptions
+
+            log.debug('User configuration file does not exist, attempting to create it')
+
+            # Load the base system path
+            shutil.copyfile(app_path, user_path)
+
+        paths.append(user_path)
+
+        # Load the configuration files
+        config = ConfigParser()
+        log.debug('Attempting to load configuration files: %s', str(paths))
+        result = config.read(paths)
+        log.debug('Configuration files loaded: %s', str(result))
+        return config
 
     def _load_language_interface(self, language):
         """
@@ -87,6 +159,13 @@ class EneIRC(IRCClient):
         lang_dir = os.path.join(self.config_dir, 'language')
         if os.path.isdir(lang_dir):
             self.language.load_directory(lang_dir)
+
+        # Make sure our configuration and data directories exist
+        if not os.path.isdir(self.config_dir):
+            os.makedirs(self.config_dir, 0o755)
+
+        if not os.path.isdir(self.data_dir):
+            os.makedirs(self.data_dir, 0o755)
 
     def _fire_event(self, event_name, **kwargs):
         """
@@ -308,8 +387,12 @@ class EneIRC(IRCClient):
         """
         Called after successfully signing on to the server.
         """
+        # Connect to our autojoin channels
+        for channel in self.server.channels:
+            if channel.autojoin:
+                self.join(channel.name)
+
         self._fire_event(irc.on_client_signed_on)
-        self.join('#homestead')
 
     def kickedFrom(self, channel, kicker, message):
         """
@@ -601,7 +684,8 @@ class PluginAbstract(object):
         """
         @type   ene:    C{ene_irc.EneIRC}
         """
-        self.log = logging.getLogger('ene_irc.plugins.{0}'.format(type(self).__name__.lower()))
+        self.name = type(self).__name__.lower()
+        self.log = logging.getLogger('ene_irc.plugins.{0}'.format(self.name))
         self.ene = ene
         class_path = sys.modules.get(self.__class__.__module__).__file__
         self.plugin_path = os.path.dirname(os.path.realpath(class_path))
@@ -613,8 +697,7 @@ class PluginAbstract(object):
         self.log.debug('Attempting to load plugin configuration: %s', config_path)
 
         if os.path.isfile(config_path):
-            self.config = ConfigParser()
-            self.config.read(config_path)
+            self.config = self.ene.load_configuration('plugin', self)
             self.log.info('Successfully loaded plugin configuration')
             return
 
@@ -756,13 +839,12 @@ class TestFactory(protocol.ClientFactory):
     A new protocol instance will be created each time we connect to the server.
     """
 
-    def __init__(self, channel):
-        self.channel = channel
+    def __init__(self, server):
+        self.ene = EneIRC(server)
 
     def buildProtocol(self, addr):
-        p = EneIRC()
-        p.factory = self
-        return p
+        self.ene.factory = self
+        return self.ene
 
     def clientConnectionLost(self, connector, reason):
         """If we get disconnected, reconnect to server."""
