@@ -28,6 +28,11 @@ class EneIRC(IRCClient):
     # Default nick
     nickname = "Ene"
 
+    # Path constants
+    CONFIG_DIR = os.path.join(appdirs.user_config_dir('ene'), 'irc')
+    DATA_DIR   = os.path.join(appdirs.user_data_dir('ene'), 'irc')
+    LOG_DIR    = os.path.join(appdirs.user_log_dir('ene'), 'irc')
+
     def __init__(self, server, language='aml'):
         """
         @type   language:   C{str}
@@ -35,11 +40,6 @@ class EneIRC(IRCClient):
         """
         # Set up logging
         self._log = logging.getLogger('ene_irc')
-
-        # Ready our paths
-        self.config_dir = appdirs.user_config_dir('ene')
-        self.data_dir   = appdirs.user_data_dir('ene')
-        self.log_dir    = appdirs.user_log_dir('ene')
 
         self.language = None
         """@type : ene_irc.languages.interface.LanguageInterface"""
@@ -84,7 +84,9 @@ class EneIRC(IRCClient):
         # Default Configuration        #
         ################################
 
-        app_path = plugin.plugin_path if plugin else os.path.join(os.path.dirname(os.path.realpath(__file__)), 'config')
+        app_path = plugin.plugin_path if plugin else os.path.dirname(os.path.realpath(__file__))
+        app_path = os.path.join(app_path, 'config')
+
         if basedir:
             app_path = os.path.join(app_path, basedir)
 
@@ -100,7 +102,7 @@ class EneIRC(IRCClient):
         # User Configuration           #
         ################################
 
-        user_path = os.path.join(appdirs.user_config_dir('ene'), 'config')
+        user_path = os.path.join(EneIRC.CONFIG_DIR, 'config')
         if plugin:
             user_path = os.path.join(user_path, 'plugins', plugin.name)
         if basedir:
@@ -156,16 +158,16 @@ class EneIRC(IRCClient):
         Run generic setup tasks.
         """
         # Load language files
-        lang_dir = os.path.join(self.config_dir, 'language')
+        lang_dir = os.path.join(self.CONFIG_DIR, 'language')
         if os.path.isdir(lang_dir):
             self.language.load_directory(lang_dir)
 
         # Make sure our configuration and data directories exist
-        if not os.path.isdir(self.config_dir):
-            os.makedirs(self.config_dir, 0o755)
+        if not os.path.isdir(self.CONFIG_DIR):
+            os.makedirs(self.CONFIG_DIR, 0o755)
 
-        if not os.path.isdir(self.data_dir):
-            os.makedirs(self.data_dir, 0o755)
+        if not os.path.isdir(self.DATA_DIR):
+            os.makedirs(self.DATA_DIR, 0o755)
 
     def _fire_event(self, event_name, **kwargs):
         """
@@ -677,31 +679,65 @@ class PluginAbstract(object):
 
     This is the class that all third-party plugins should extend.
     """
-    __ENE_IRC_PLUGIN_NAME__ = None
-    __ENE_IRC_PLUGIN_DEFAULT_PERMISSION__ = 'guest'
+    # This is the name of the plugin. If None, the class name will be used instead.
+    ENE_IRC_PLUGIN_NAME = None
+
+    # This is the default permission set required for commands and events.
+    ENE_IRC_PLUGIN_DEFAULT_PERMISSION = 'guest'
+
+    # This is a list of configuration files to load into the plugins default configuration object (self.config)
+    ENE_IRC_PLUGIN_CONFIG = 'plugin'
+    ENE_IRC_PLUGIN_CONFIG_BASEDIR = None
+    ENE_IRC_PLUGIN_CONFIG_DEFAULT = None  # Only used when PLUGIN_CONFIG contains a single config file
+
+    # When True, the plugin class will be instantiated on demand instead of immediately on startup.
+    ENE_IRC_LAZY_LOAD = False  # TODO: Currently has no effect
 
     def __init__(self, ene):
         """
         @type   ene:    C{ene_irc.EneIRC}
         """
-        self.name = type(self).__name__.lower()
+        self.name = self.ENE_IRC_PLUGIN_NAME or type(self).__name__.lower()
         self.log = logging.getLogger('ene_irc.plugins.{0}'.format(self.name))
         self.ene = ene
         class_path = sys.modules.get(self.__class__.__module__).__file__
         self.plugin_path = os.path.dirname(os.path.realpath(class_path))
-        self.config = ConfigParser()
+        self.config = NotImplemented
         self._load_configuration()
 
+    # noinspection PyUnresolvedReferences
     def _load_configuration(self):
-        config_path = os.path.join(self.plugin_path, 'plugin.cfg')
-        self.log.debug('Attempting to load plugin configuration: %s', config_path)
+        if not self.ENE_IRC_PLUGIN_CONFIG:
+            self.log.info('Plugin configuration has been explicitly disabled')
 
-        if os.path.isfile(config_path):
-            self.config = self.ene.load_configuration('plugin', self)
-            self.log.info('Successfully loaded plugin configuration')
+        basedir = self.ENE_IRC_PLUGIN_CONFIG_BASEDIR
+        default = self.ENE_IRC_PLUGIN_CONFIG_DEFAULT
+
+        # Do we just have a single configuration file?
+        if isinstance(self.ENE_IRC_PLUGIN_CONFIG, basestring):
+            name = self.ENE_IRC_PLUGIN_CONFIG
+            if name.endswith('.cfg'):
+                name = name[:-4]
+
+            try:
+                self.config = EneIRC.load_configuration(name, self, basedir, default)
+            except ValueError:
+                self.log.warn('No plugin configuration file found. Please set ENE_IRC_PLUGIN_CONFIG to None if you '
+                              'wish to explicitly disable configuration files for this plugin.')
+
+            self.log.debug('Loaded plugin configuration %s.cfg', name)
             return
 
-        self.log.info('No plugin configuration file could be found')
+        # Construct a dictionary to store config instances in
+        self.config = {}
+
+        for name in self.ENE_IRC_PLUGIN_CONFIG:
+            # MAke sure our configuration file has the proper extension
+            if name.endswith('.cfg'):
+                name = name[:-4]
+
+            self.config[name] = EneIRC.load_configuration(name, self, basedir)
+            self.log.debug('Loaded plugin configuration %s.cfg', name)
 
 
 # noinspection PyMethodMayBeStatic
@@ -732,7 +768,7 @@ class _Registry(object):
         if not issubclass(cls, PluginAbstract):
             raise PluginError('Plugin class must extend ene_irc.PluginAbstract')
 
-        name = cls.__ENE_IRC_PLUGIN_NAME__ or cls.__name__
+        name = cls.ENE_IRC_PLUGIN_NAME or cls.__name__
         obj  = self._plugins[name] if name in self._plugins else cls(self.ene)
 
         return name, obj
