@@ -7,6 +7,11 @@ python:
 # - "3.4"
 # - "3.5"
 # command to install dependencies
-install: "pip install -r requirements.txt"
+install:
+  - "pip install -r requirements.txt"
+  - "pip install coveralls"
+  - "python setup.py install"
 # command to run tests
-script: nosetests
+script:
+  - nosetests --with-coverage --cover-package=ene_irc
+after_success: coveralls
