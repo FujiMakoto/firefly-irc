@@ -21,7 +21,7 @@ class Logger(PluginAbstract):
         self._load_paths()
 
     def _load_paths(self):
-        self.log.debug('Loading paths...')
+        self._log.debug('Loading paths...')
         self.basedir    = self.config.get('Paths', 'Basedir')
         self.server     = self.config.get('Paths', 'Server')
         self.channel    = self.config.get('Paths', 'Channel')
@@ -35,7 +35,7 @@ class Logger(PluginAbstract):
         for path in (self.basedir, self.server, self.channel, self.query):
             # Skip empty paths
             if not path:
-                self.log.debug('Skipping unset path')
+                self._log.debug('Skipping unset path')
                 continue
 
             # Try and create the directory. If it already exists and is a dir, continue. If it exists as a file, raise.
@@ -45,13 +45,13 @@ class Logger(PluginAbstract):
                 if exc.errno == errno.EEXIST and os.path.isdir(path):
                     pass
                 else:
-                    self.log.error('Failed to make path directory: %s', path)
+                    self._log.error('Failed to make path directory: %s', path)
                     raise
 
-        self.log.debug('Basedir: %s', self.basedir)
-        self.log.debug('Servers: %s', self.server)
-        self.log.debug('Channels: %s', self.channel)
-        self.log.debug('Queries: %s', self.query)
+        self._log.debug('Basedir: %s', self.basedir)
+        self._log.debug('Servers: %s', self.server)
+        self._log.debug('Channels: %s', self.channel)
+        self._log.debug('Queries: %s', self.query)
 
     @irc.event(irc.on_client_signed_on)
     def ping(self):
