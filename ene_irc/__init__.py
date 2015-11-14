@@ -2,13 +2,15 @@ import importlib
 import logging
 import os
 import shutil
-import appdirs
-from ConfigParser import ConfigParser
-import pkg_resources
 import sys
+from ConfigParser import ConfigParser
+
+import appdirs
+import pkg_resources
+import venusian
 from twisted.internet import reactor, protocol
 from twisted.words.protocols.irc import IRCClient
-import venusian
+
 from ene_irc import plugins, irc
 from ene_irc.containers import ServerInfo, Destination, Hostmask, Message
 from errors import LanguageImportError, PluginCommandExistsError, PluginError
@@ -699,9 +701,9 @@ class PluginAbstract(object):
         """
         @type   ene:    C{ene_irc.EneIRC}
         """
+        self.name = self.ENE_IRC_PLUGIN_NAME or type(self).__name__.lower()
         self._log = logging.getLogger('ene_irc.plugins.{0}'.format(self.name))
         self.ene = ene
-        self.name = self.ENE_IRC_PLUGIN_NAME or type(self).__name__.lower()
 
         class_path = sys.modules.get(self.__class__.__module__).__file__
         self.plugin_path = os.path.dirname(os.path.realpath(class_path))
