@@ -699,11 +699,13 @@ class PluginAbstract(object):
         """
         @type   ene:    C{ene_irc.EneIRC}
         """
-        self.name = self.ENE_IRC_PLUGIN_NAME or type(self).__name__.lower()
-        self.log = logging.getLogger('ene_irc.plugins.{0}'.format(self.name))
+        self._log = logging.getLogger('ene_irc.plugins.{0}'.format(self.name))
         self.ene = ene
+        self.name = self.ENE_IRC_PLUGIN_NAME or type(self).__name__.lower()
+
         class_path = sys.modules.get(self.__class__.__module__).__file__
         self.plugin_path = os.path.dirname(os.path.realpath(class_path))
+
         self.config = NotImplemented
         self._load_configuration()
 
@@ -715,7 +717,7 @@ class PluginAbstract(object):
         @raise  ValueError: Re-raised if strict mode is enabled and a configuration file can not be loaded
         """
         if not self.ENE_IRC_PLUGIN_CONFIG:
-            self.log.info('Plugin configuration has been explicitly disabled')
+            self._log.info('Plugin configuration has been explicitly disabled')
 
         basedir = self.ENE_IRC_PLUGIN_CONFIG_BASEDIR
         default = self.ENE_IRC_PLUGIN_CONFIG_DEFAULT
@@ -734,12 +736,12 @@ class PluginAbstract(object):
 
                 # Re-throw exception if strict mode is enabled
                 if self.ENE_STRICT:
-                    self.log.error(err_msg)
+                    self._log.error(err_msg)
                     raise
 
-                self.log.warn(err_msg)
+                self._log.warn(err_msg)
 
-            self.log.debug('Loaded plugin configuration file %s.cfg', name)
+            self._log.debug('Loaded plugin configuration file %s.cfg', name)
             return
 
         # Construct a dictionary to store config instances in
@@ -757,13 +759,13 @@ class PluginAbstract(object):
 
                 # Unless strict mode is enabled, just log the error as a warning and continue
                 if not self.ENE_STRICT:
-                    self.log.warn(err_msg)
+                    self._log.warn(err_msg)
                     continue
 
-                self.log.error(err_msg)
+                self._log.error(err_msg)
                 raise
 
-            self.log.debug('Loaded plugin configuration file %s.cfg', name)
+            self._log.debug('Loaded plugin configuration file %s.cfg', name)
 
 
 # noinspection PyMethodMayBeStatic
