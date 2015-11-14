@@ -693,6 +693,8 @@ class PluginAbstract(object):
     # When True, the plugin class will be instantiated on demand instead of immediately on startup.
     ENE_IRC_LAZY_LOAD = False  # TODO: Currently has no effect
 
+    ENE_STRICT = False
+
     def __init__(self, ene):
         """
         @type   ene:    C{ene_irc.EneIRC}
@@ -707,6 +709,11 @@ class PluginAbstract(object):
 
     # noinspection PyUnresolvedReferences
     def _load_configuration(self):
+        """
+        Load plugin configuration files.
+
+        @raise  ValueError: Re-raised if strict mode is enabled and a configuration file can not be loaded
+        """
         if not self.ENE_IRC_PLUGIN_CONFIG:
             self.log.info('Plugin configuration has been explicitly disabled')
 
@@ -722,10 +729,17 @@ class PluginAbstract(object):
             try:
                 self.config = EneIRC.load_configuration(name, self, basedir, default)
             except ValueError:
-                self.log.warn('No plugin configuration file found. Please set ENE_IRC_PLUGIN_CONFIG to None if you '
-                              'wish to explicitly disable configuration files for this plugin.')
+                err_msg = 'No plugin configuration file found. Please set ENE_IRC_PLUGIN_CONFIG to None if you wish ' \
+                          'to explicitly disable configuration files for this plugin'
 
-            self.log.debug('Loaded plugin configuration %s.cfg', name)
+                # Re-throw exception if strict mode is enabled
+                if self.ENE_STRICT:
+                    self.log.error(err_msg)
+                    raise
+
+                self.log.warn(err_msg)
+
+            self.log.debug('Loaded plugin configuration file %s.cfg', name)
             return
 
         # Construct a dictionary to store config instances in
@@ -736,8 +750,20 @@ class PluginAbstract(object):
             if name.endswith('.cfg'):
                 name = name[:-4]
 
-            self.config[name] = EneIRC.load_configuration(name, self, basedir)
-            self.log.debug('Loaded plugin configuration %s.cfg', name)
+            try:
+                self.config[name] = EneIRC.load_configuration(name, self, basedir)
+            except ValueError:
+                err_msg = 'Unable to load plugin configuration file {n}.cfg'.format(n=name)
+
+                # Unless strict mode is enabled, just log the error as a warning and continue
+                if not self.ENE_STRICT:
+                    self.log.warn(err_msg)
+                    continue
+
+                self.log.error(err_msg)
+                raise
+
+            self.log.debug('Loaded plugin configuration file %s.cfg', name)
 
 
 # noinspection PyMethodMayBeStatic
