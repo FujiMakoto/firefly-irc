@@ -203,6 +203,7 @@ class EneIRC(IRCClient):
     def yourHost(self, info):
         """
         Called with daemon information about the server, usually at logon.
+        # TODO: Consider integrating into ServerInfo container
 
         @param  info: A string describing what software the server is running, probably.
         @type   info: C{str}
