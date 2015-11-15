@@ -5,7 +5,7 @@ from ConfigParser import ConfigParser
 import mock
 
 from ene_irc import EneIRC
-from ene_irc.containers import Server, Channel
+from ene_irc.containers import Server, Channel, ServerInfo
 
 
 class ServerTestCase(unittest.TestCase):
@@ -68,3 +68,48 @@ class ServerTestCase(unittest.TestCase):
         self.assertEqual(third.name, '#third')
         self.assertFalse(third.autojoin)
         self.assertEqual(third.password, 'secret')
+
+
+class ServerInfoTestCase(unittest.TestCase):
+
+    FIRST_RESPONSE  = ['CALLERID', 'CASEMAPPING=rfc1459', 'DEAF=D', 'KICKLEN=180', 'MODES=4', 'PREFIX=(ohv)@%+',
+                       'STATUSMSG=@%+', 'EXCEPTS=e', 'INVEX=I', 'NICKLEN=15', 'NETWORK=TestCase', 'MAXLIST=beI:100',
+                       'MAXTARGETS=4']
+
+    SECOND_RESPONSE = ['CHANTYPES=#&', 'CHANLIMIT=#:25,&:10', 'CHANNELLEN=50', 'TOPICLEN=300',
+                       'CHANMODES=beI,k,l,imnprstORS', 'WATCH=60', 'ELIST=CMNTU', 'SAFELIST', 'AWAYLEN=240', 'KNOCK']
+
+    SUPPORTS = [('CASEMAPPING', 'rfc1459'), ('DEAF', 'D'), ('KICKLEN', '180'), ('MODES', '4'), ('PREFIX', '(ohv)@%+'),
+                ('STATUSMSG', '@%+'), ('EXCEPTS', 'e'), ('INVEX', 'I'), ('NICKLEN', '15'), ('NETWORK', 'TestCase'),
+                ('MAXLIST', 'beI:100'), ('MAXTARGETS', '4'), ('CHANTYPES', '#&'), ('CHANLIMIT', '#:25,&:10'),
+                ('CHANNELLEN', '50'), ('TOPICLEN', '300'), ('CHANMODES', 'beI,k,l,imnprstORS'), ('WATCH', '60'),
+                ('ELIST', 'CMNTU'), ('AWAYLEN', '240')]
+
+    CHANMODES = (['b', 'e', 'I'], ['k'], ['l'], ['i', 'm', 'n', 'p', 'r', 's', 't', 'O', 'R', 'S'])
+
+    PREFIX = (('o', '@'), ('h', '%'), ('v', '+'))
+
+    CHANTYPES = ['#', '&']
+
+    CHANLIMIT = [('#', 25), ('&', 10)]
+
+    def setUp(self):
+        self.server_info = ServerInfo()
+
+    def test_server_info_container_attributes(self):
+        # Support responses are usually split into multiple messages
+        self.server_info.parse_supports(self.FIRST_RESPONSE)
+        self.server_info.parse_supports(self.SECOND_RESPONSE)
+
+        self.assertEqual(self.server_info.network, 'TestCase')
+        self.assertListEqual(self.server_info.supports, self.SUPPORTS)
+        self.assertTupleEqual(self.server_info.channel_modes, self.CHANMODES)
+        self.assertTupleEqual(self.server_info.prefixes, self.PREFIX)
+        self.assertListEqual(self.server_info.channel_types, self.CHANTYPES)
+        self.assertListEqual(self.server_info.channel_limits, self.CHANLIMIT)
+
+        self.assertEqual(self.server_info.max_nick_length, 15)
+        self.assertEqual(self.server_info.max_channel_length, 50)
+        self.assertEqual(self.server_info.max_topic_length, 300)
+        self.assertEqual(self.server_info.max_kick_length, 180)
+        self.assertEqual(self.server_info.max_away_length, 240)
