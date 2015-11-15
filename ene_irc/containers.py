@@ -481,8 +481,11 @@ class Hostmask(object):
             if not ignore_errors:
                 raise
 
-        _message = 'Host successfully resolved: %s' if self._ip else 'Unable to resolve host'
-        self._log.debug(_message, self._ip)
+        if self._ip:
+            self._log.debug('Host successfully resolved: %s', self._ip)
+        else:
+            self._log.debug('Unable to resolve host')
+
         return self._ip
 
     def __repr__(self):
