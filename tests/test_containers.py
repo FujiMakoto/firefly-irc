@@ -6,7 +6,7 @@ import mock
 import socket
 
 from ene_irc import EneIRC
-from ene_irc.containers import Server, Channel, ServerInfo, Destination, Hostmask
+from ene_irc.containers import Server, Channel, ServerInfo, Destination, Hostmask, Message
 
 
 class ServerTestCase(unittest.TestCase):
@@ -170,3 +170,60 @@ class HostmaskTestCase(unittest.TestCase):
 
         hostmask = Hostmask('Nick!~user@testhost.example')
         self.assertRaises(socket.error, hostmask.resolve_host, False)
+
+
+class MessageTestCase(unittest.TestCase):
+
+    def setUp(self):
+        mock_server_info = mock.MagicMock(channel_types=['#', '&'])
+        mock_ene = mock.MagicMock(server_info=mock_server_info)
+        self.mock_ene = mock_ene
+
+        self.message  = '\x0308,02\x02\x1fHello, world!\x01'
+        self.stripped = 'Hello, world!'
+        self.hostmask = Hostmask('Nick!~user@example.org')
+
+    def test_message_attributes(self):
+        destination = Destination(self.mock_ene, '&test-channel')
+        message = Message(self.message, destination, self.hostmask)
+
+        self.assertEqual(message.raw, self.message)
+        self.assertEqual(message.stripped, self.stripped)
+        self.assertIs(message.destination, destination)
+        self.assertIs(message.source, self.hostmask)
+        self.assertEqual(str(message), message.stripped)
+
+        self.assertEqual(message.type, Message.MESSAGE)
+        self.assertTrue(message.is_message)
+        self.assertFalse(message.is_notice)
+        self.assertFalse(message.is_action)
+
+    def test_notice_attributes(self):
+        destination = Destination(self.mock_ene, 'TestUser')
+        message = Message(self.message, destination, self.hostmask, Message.NOTICE)
+
+        self.assertEqual(message.raw, self.message)
+        self.assertEqual(message.stripped, self.stripped)
+        self.assertIs(message.destination, destination)
+        self.assertIs(message.source, self.hostmask)
+        self.assertEqual(str(message), message.stripped)
+
+        self.assertEqual(message.type, Message.NOTICE)
+        self.assertFalse(message.is_message)
+        self.assertTrue(message.is_notice)
+        self.assertFalse(message.is_action)
+
+    def test_action_attributes(self):
+        destination = Destination(self.mock_ene, '#testchan')
+        message = Message(self.message, destination, self.hostmask, Message.ACTION)
+
+        self.assertEqual(message.raw, self.message)
+        self.assertEqual(message.stripped, self.stripped)
+        self.assertIs(message.destination, destination)
+        self.assertIs(message.source, self.hostmask)
+        self.assertEqual(str(message), message.stripped)
+
+        self.assertEqual(message.type, Message.ACTION)
+        self.assertFalse(message.is_message)
+        self.assertFalse(message.is_notice)
+        self.assertTrue(message.is_action)
