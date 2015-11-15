@@ -5,7 +5,7 @@ from ConfigParser import ConfigParser
 import mock
 
 from ene_irc import EneIRC
-from ene_irc.containers import Server, Channel, ServerInfo
+from ene_irc.containers import Server, Channel, ServerInfo, Destination
 
 
 class ServerTestCase(unittest.TestCase):
@@ -113,3 +113,36 @@ class ServerInfoTestCase(unittest.TestCase):
         self.assertEqual(self.server_info.max_topic_length, 300)
         self.assertEqual(self.server_info.max_kick_length, 180)
         self.assertEqual(self.server_info.max_away_length, 240)
+
+
+# noinspection PyTypeChecker
+class DestinationTestCase(unittest.TestCase):
+
+    def setUp(self):
+        mock_server_info = mock.MagicMock(channel_types=['#', '&'])
+        mock_ene = mock.MagicMock(server_info=mock_server_info)
+
+        self.mock_ene = mock_ene
+
+    def test_channel_destination(self):
+        destination = Destination(self.mock_ene, '#test')
+
+        self.assertEqual(destination.type, destination.CHANNEL)
+        self.assertTrue(destination.is_channel)
+        self.assertFalse(destination.is_user)
+
+        self.assertEqual(destination.raw, '#test')
+        self.assertEqual(destination.name, 'test')
+        self.assertEqual(str(destination), '#test')
+
+    def test_user_destination(self):
+        destination = Destination(self.mock_ene, '`TestCase')
+
+        self.assertEqual(destination.type, destination.USER)
+        self.assertFalse(destination.is_channel)
+        self.assertTrue(destination.is_user)
+
+        self.assertEqual(destination.raw, '`TestCase')
+        self.assertEqual(destination.name, '`TestCase')
+        self.assertEqual(str(destination), '`TestCase')
+
