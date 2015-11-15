@@ -21,11 +21,11 @@ class Server(object):
 
         self.hostname       = hostname
         self.enabled        = config.getboolean(hostname, 'Enabled')
-        self.auto_connect   = config.getboolean(hostname, 'Enabled')
+        self.auto_connect   = config.getboolean(hostname, 'Autoconnect')
         self.nick           = config.get(hostname, 'Nick')
         self.username       = config.get(hostname, 'Username')
         self.realname       = config.get(hostname, 'Realname')
-        self.password       = config.get(hostname, 'Password')
+        self.password       = config.get(hostname, 'Password') or None
         self.port           = config.getint(hostname, 'Port')
         self.ssl            = config.getboolean(hostname, 'SSL')
 
@@ -67,7 +67,7 @@ class Channel(object):
         self.server     = server
         self.name       = name
         self.autojoin   = config.getboolean(name, 'Autojoin')
-        self.password   = config.get(name, 'Password')
+        self.password   = config.get(name, 'Password') or None
 
 
 class ServerInfo(object):
