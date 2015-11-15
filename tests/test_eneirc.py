@@ -83,7 +83,7 @@ class EneIRCTestCase(unittest.TestCase):
                     # Fire the event dispatcher and make sure it fires off the correct plugin event in return
                     method(**kwargs)
                     called_events = [c[1][0] for c in mock_fire_event.mock_calls]
-                    self.assertIn(meth_name, called_events, 'Event {mn} was not fired'.format(mn=meth_name))
+                    self.assertIn(meth_name, called_events)
 
 
 class LanguageTests(EneIRCTestCase):
