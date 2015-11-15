@@ -3,9 +3,10 @@ import unittest
 from ConfigParser import ConfigParser
 
 import mock
+import socket
 
 from ene_irc import EneIRC
-from ene_irc.containers import Server, Channel, ServerInfo, Destination
+from ene_irc.containers import Server, Channel, ServerInfo, Destination, Hostmask
 
 
 class ServerTestCase(unittest.TestCase):
@@ -146,3 +147,26 @@ class DestinationTestCase(unittest.TestCase):
         self.assertEqual(destination.name, '`TestCase')
         self.assertEqual(str(destination), '`TestCase')
 
+
+class HostmaskTestCase(unittest.TestCase):
+
+    # TODO: Add test case for invalid hostmasks when exception handling is implemented
+
+    def test_hostmask_attributes(self):
+        hostmask = Hostmask('Nick!~user@example.org')
+
+        self.assertEqual(hostmask.hostmask, 'Nick!~user@example.org')
+        self.assertEqual(hostmask.nick, 'Nick')
+        self.assertEqual(hostmask.username, '~user')
+        self.assertEqual(hostmask.host, 'example.org')
+
+    # This test will fail if the host machine is not connected to a working network
+    def test_hostmask_resolution(self):
+        hostmask = Hostmask('Nick!~user@example.org')
+        self.assertEqual(hostmask.resolve_host(), '93.184.216.34')
+
+        hostmask = Hostmask('Nick!~user@testhost.example')
+        self.assertFalse(hostmask.resolve_host())
+
+        hostmask = Hostmask('Nick!~user@testhost.example')
+        self.assertRaises(socket.error, hostmask.resolve_host, False)
