@@ -8,12 +8,15 @@ from ConfigParser import ConfigParser
 import appdirs
 import pkg_resources
 import venusian
+from ircmessage import style
 from twisted.internet import reactor, protocol
 from twisted.words.protocols.irc import IRCClient
 
 from ene_irc import plugins, irc
+from ene_irc.args import ArgumentParser
 from ene_irc.containers import ServerInfo, Destination, Hostmask, Message
-from errors import LanguageImportError, PluginCommandExistsError, PluginError
+from errors import LanguageImportError, PluginCommandExistsError, PluginError, NoSuchPluginError, NoSuchCommandError, \
+    ArgumentParserError
 
 __author__     = "Makoto Fujimoto"
 __copyright__  = 'Copyright 2015, Makoto Fujimoto'
@@ -187,6 +190,97 @@ class EneIRC(IRCClient):
             self._log.info('Firing event: %s (%s); Params: %s', str(cls), str(func), str(params))
             func(cls, **kwargs)
 
+    def _fire_command(self, plugin, name, cmd_args, message):
+        """
+        Fire an IRC command.
+
+        @type   plugin:     str
+        @param  plugin:     Name of the command plugin
+
+        @type   name:       str
+        @param  name:       Name of the command
+
+        @type   cmd_args:   list of str
+        @param  cmd_args:   List of command arguments
+
+        @type   message:    Message
+        @param  message:    Command message container
+        """
+        self._log.info('Firing command: %s %s (%s)', plugin, name, str(cmd_args))
+        cls, func, argparse = self.registry.get_command(plugin, name)
+
+        try:
+            response = func(argparse.parse_args(cmd_args), message)
+            self._log.info('Command response: %s', str(response))
+
+            if isinstance(response, tuple):
+                response = '\n'.join(response)
+            elif isinstance(response, list):
+                response = '\n'.join(response)
+
+            if message.destination.is_user:
+                self.msg(message.source, response)
+            else:
+                self.msg(message.destination, response)
+        except ArgumentParserError as e:
+            self._log.info('Argument parser error: %s', e.message)
+
+            usage    = style(argparse.format_usage().strip(), bold=True)
+            desc     = ' -- {desc}'.format(desc=argparse.description.strip()) if argparse.description else ''
+            help_msg = '({usage}){desc}'.format(usage=usage, desc=desc)
+
+            # If this command was sent in a query, return the error now
+            if message.destination.is_user:
+                self.msg(message.source, e.message)
+                self.msg(message.source, help_msg)
+                return
+
+            # Otherwise, check if we should send the messages as a notice or channel message
+            if self.server.public_errors:
+                self.msg(message.destination, e.message)
+                self.msg(message.destination, help_msg)
+            else:
+                self.notice(message.source, e.message)
+                self.notice(message.source, help_msg)
+
+    def msg(self, user, message, length=None):
+        if isinstance(user, Destination):
+            self._log.debug('Implicitly converting Destination to raw format for message delivery: %s --> %s',
+                            repr(user), user.raw)
+            user = user.raw
+
+        if isinstance(user, Hostmask):
+            self._log.debug('Implicitly converting Hostmask to nick format for message delivery: %s --> %s',
+                            repr(user), user.nick)
+            user = user.nick
+
+        self._log.debug('Delivering message to %s : %s', user, (message[:35] + '..') if len(message) > 35 else message)
+        IRCClient.msg(self, user, message, length)
+        
+    def notice(self, user, message):
+        """
+        Send a notice to a user.
+
+        Notices are like normal message, but should never get automated
+        replies.
+
+        @type user: C{str}
+        @param user: The user to send a notice to.
+        @type message: C{str}
+        @param message: The contents of the notice to send.
+        """
+        if isinstance(user, Destination):
+            self._log.debug('Implicitly converting Destination to raw format for notice delivery: %s --> %s',
+                            repr(user), user.raw)
+            user = user.raw
+
+        if isinstance(user, Hostmask):
+            self._log.debug('Implicitly converting Hostmask to nick format for notice delivery: %s --> %s',
+                            repr(user), user.nick)
+            user = user.nick
+
+        IRCClient.notice(self, user, message)
+
     ################################
     # High-level IRC Events        #
     ################################
@@ -296,6 +390,13 @@ class EneIRC(IRCClient):
         @type   message:    C{str}
         """
         message = Message(message, Destination(self, channel), Hostmask(user))
+
+        if message.is_command:
+            self._log.debug('Message registered as a command: %s', repr(message))
+            command_plugin, command_name, command_args = message.command_parts
+            self._fire_command(command_plugin, command_name, command_args, message)
+            return
+
         self._fire_event(irc.on_message, message=message)
 
         # Fire custom events
@@ -641,6 +742,7 @@ class EneIRC(IRCClient):
         self._fire_event(irc.on_server_welcome, prefix=prefix, params=params)
 
     def irc_unknown(self, prefix, command, params):
+        self._log.debug('Unknown IRC event: ({pr} {c} {pa})'.format(pr=str(prefix), c=str(command), pa=str(params)))
         self._fire_event(irc.on_unknown, prefix=prefix, command=command, params=params)
 
     def ctcpQuery(self, user, channel, messages):
@@ -833,11 +935,40 @@ class _Registry(object):
             raise PluginCommandExistsError('%s has already been bound by %s', name,
                                            str(self._commands[plugin_name][name][0]))
 
-        # Map the command
-        self._commands[plugin_name][name] = (plugin_obj, func, params)
+        # Set up an ArgumentParser for this command
+        ap = ArgumentParser(name)
 
-    def get_command(self, name):
-        pass
+        # Get our decorated plugin function
+        print(func)
+        dec_func = func(plugin_obj, ap)
+
+        # Map the command
+        self._commands[plugin_name][name] = (plugin_obj, dec_func, ap)
+
+    def get_command(self, plugin, name):
+        """
+        Get a bound command.
+
+        @type   plugin: str
+        @param  plugin: Name of the plugin to retrieve a command from.
+
+        @type   name:   str
+        @param  name:   Name of the command to retrieve.
+
+        @rtype: tuple
+        @raise  NoSuchPluginError:  Raised if the requested plugin does not exist.
+        @raise  NoSuchCommandError: Raised if the requested command does not exist.
+        """
+        if plugin not in self._commands:
+            self._log.info('Attempted to retrieve a command from a non-existent plugin: %s', plugin)
+            print(str(self._commands))
+            raise NoSuchPluginError('Requested plugin {p} does not exist'.format(p=plugin))
+
+        if name not in self._commands[plugin]:
+            self._log.info('Attempted to retrieve a non-existent command from the %s plugin: %s', plugin, name)
+            raise NoSuchCommandError('Requested command {c} does not exist for the {p} plugin'.format(c=name, p=plugin))
+
+        return self._commands[plugin][name]
 
     def bind_event(self, name, cls, func, params):
         """
