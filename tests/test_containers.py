@@ -179,7 +179,7 @@ class MessageTestCase(unittest.TestCase):
         mock_ene = mock.MagicMock(server_info=mock_server_info)
         self.mock_ene = mock_ene
 
-        self.message  = '\x0308,02\x02\x1fHello, world!\x01'
+        self.message  = '\x0308,02\x02\x1fHello, world!\x0F'
         self.stripped = 'Hello, world!'
         self.hostmask = Hostmask('Nick!~user@example.org')
 
