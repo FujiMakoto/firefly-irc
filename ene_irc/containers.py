@@ -1,3 +1,5 @@
+import shlex
+
 import ene_irc
 import logging
 import socket
@@ -29,6 +31,9 @@ class Server(object):
         self.port           = config.getint(hostname, 'Port')
         self.ssl            = config.getboolean(hostname, 'SSL')
 
+        self.command_prefix = self._parse_command_prefix(config.get(hostname, 'CommandPrefix'))
+        self.public_errors  = config.getboolean(hostname, 'PublicErrors')
+
         self.channels = []
         self._load_channels()
 
@@ -45,6 +50,21 @@ class Server(object):
         channels = config.sections()
         for channel in channels:
             self.channels.append(Channel(self, channel, config))
+
+    def _parse_command_prefix(self, prefix):
+        """
+        # Make sure we're not trying to stupidly use a word character as the command prefix
+
+        @type   prefix: str
+
+        @rtype: str or bool
+        """
+        if not re.match('^[^\w\s]+$', prefix):
+            self._log.error('Server configuration contains an erroneous command prefix: {p}')
+            self._log.error('Commands will be disabled until configuration issues are resolved')
+            return False
+
+        return prefix
 
 
 class Channel(object):
@@ -515,11 +535,43 @@ class Message(object):
         @type   message_type:   str
         @param  message_type:   The message type. Either message, notice or action
         """
-        self.raw = message
-        self.stripped = unstyle(message)
+        self._log = logging.getLogger('ene_irc.message')
+        self.raw = message.strip()
+        self.stripped = unstyle(message).strip()
         self.destination = destination
         self.source = source
         self.type = message_type
+
+        self._command = []
+
+    @property
+    def is_command(self):
+        """
+        Message is calling a command
+        @type: C{bool}
+        """
+        # Make sure we actually have a command prefix set
+        command_prefix = self.destination.ene.server.command_prefix
+        if not command_prefix:
+            self._log.debug('Server has no command prefix defined, unable to check for command status')
+            return False
+
+        return self.stripped.startswith(command_prefix)
+
+    @property
+    def command_parts(self):
+        if not self.is_command:
+            raise ValueError('Message does not contain a valid command')
+
+        command_prefix = self.destination.ene.server.command_prefix
+        command = self.stripped[len(command_prefix):].strip()
+        parts = shlex.split(command)
+
+        if len(parts) < 2:
+            raise TypeError('Command strings must contain at least a plugin name and command name')
+
+        # Plugin Name, Command Name, Args
+        return parts[0], parts[1], parts[2:]
 
     @property
     def is_message(self):
