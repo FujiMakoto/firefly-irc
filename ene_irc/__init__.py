@@ -902,6 +902,7 @@ class _Registry(object):
             raise PluginError('Plugin class must extend ene_irc.PluginAbstract')
 
         name = cls.ENE_IRC_PLUGIN_NAME or cls.__name__
+        name = name.lower().strip()
         obj  = self._plugins[name] if name in self._plugins else cls(self.ene)
 
         return name, obj
@@ -922,6 +923,7 @@ class _Registry(object):
 
         @raise  PluginCommandExistsError:   Raised if this plugin has already been mapped
         """
+        name = name.lower().strip().replace(' ', '_')
         self._log.info('Binding new plugin command %s to %s (%s)', name, str(cls), str(func))
 
         # Get our plugin data
@@ -939,7 +941,6 @@ class _Registry(object):
         ap = ArgumentParser(name)
 
         # Get our decorated plugin function
-        print(func)
         dec_func = func(plugin_obj, ap)
 
         # Map the command
@@ -959,6 +960,9 @@ class _Registry(object):
         @raise  NoSuchPluginError:  Raised if the requested plugin does not exist.
         @raise  NoSuchCommandError: Raised if the requested command does not exist.
         """
+        plugin = plugin.lower().strip()
+        name = name.lower().strip()
+
         if plugin not in self._commands:
             self._log.info('Attempted to retrieve a command from a non-existent plugin: %s', plugin)
             print(str(self._commands))
