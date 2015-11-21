@@ -120,6 +120,7 @@ class command(object):
 
         def callback(scanner, name, ob):
             command_name = self.command_name or func.__name__
+            command_name = command_name.lower().strip()
             params = {'name': command_name, 'permission': self.permission}
 
             scanner.ene.registry.bind_command(command_name, ob, func, params)

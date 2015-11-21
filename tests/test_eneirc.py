@@ -3,7 +3,8 @@ import unittest
 
 from mock import mock
 
-from ene_irc import EneIRC, irc
+import ene_irc
+from ene_irc import EneIRC, irc, PluginAbstract, errors, containers
 from ene_irc.containers import Server
 from ene_irc.languages.aml import AgentMLLanguage
 from ene_irc.languages.interface import LanguageInterface
@@ -63,7 +64,8 @@ class EneIRCTestCase(unittest.TestCase):
         self.ene_irc = EneIRC(Server(hostname, config))
 
     @mock.patch('ene_irc.IRCClient')
-    def test_event_bindings(self, mock_class):
+    @mock.patch.object(EneIRC, 'join')
+    def test_event_bindings(self, mock_join, mock_class):
         events = [(en, getattr(irc, en)) for en in dir(irc) if en.startswith('on_')]
         ene_methods = dir(self.ene_irc)
 
@@ -84,6 +86,131 @@ class EneIRCTestCase(unittest.TestCase):
                     method(**kwargs)
                     called_events = [c[1][0] for c in mock_fire_event.mock_calls]
                     self.assertIn(meth_name, called_events)
+
+
+class PluginCommandTestCase(unittest.TestCase):
+
+    class PluginTest(PluginAbstract):
+
+        @irc.command()
+        def ping(self, args):
+            """
+            @type   args:   ene_irc.args.ArgumentParser
+            """
+            args.add_argument('times', type=int, help='How many times to pong')
+            args.add_argument('--message', help='The response message to use', default='pong')
+
+            def _ping(args, message):
+                """
+                @type   args:       argparse.Namespace
+                @type   message:    ene_irc.containers.Message
+                """
+                pongs = [args.message]
+                pongs = pongs * args.times
+
+                return ' '.join(pongs)
+
+            return _ping
+
+    def setUp(self, **kwargs):
+        """
+        Set up the Unit Test
+        """
+        servers_config = EneIRC.load_configuration('servers')
+        servers = []
+        hostnames = servers_config.sections()
+        for hostname in hostnames:
+            servers.append((hostname, servers_config))
+
+        self.hostname, self.config = servers.pop()
+
+    def test_bind_command(self):
+        ene_irc = EneIRC(Server(self.hostname, self.config))
+        params = {'name': 'ping', 'permission': 'guest'}
+
+        ene_irc.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
+
+        self.assertIn('plugintest', ene_irc.registry._commands)
+        self.assertIn('ping', ene_irc.registry._commands['plugintest'])
+
+    def test_get_command(self):
+        ene_irc = EneIRC(Server(self.hostname, self.config))
+        params = {'name': 'ping', 'permission': 'guest'}
+
+        ene_irc.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
+
+        self.assertIn('plugintest', ene_irc.registry._commands)
+        self.assertIn('ping', ene_irc.registry._commands['plugintest'])
+
+        command = ene_irc.registry.get_command('plugintest', 'ping')
+        self.assertIsInstance(command, tuple)
+
+    def test_get_command_bad_plugin(self):
+        ene_irc = EneIRC(Server(self.hostname, self.config))
+        params = {'name': 'ping', 'permission': 'guest'}
+
+        ene_irc.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
+
+        self.assertIn('plugintest', ene_irc.registry._commands)
+        self.assertIn('ping', ene_irc.registry._commands['plugintest'])
+
+        command = ene_irc.registry.get_command('PLUGINtest', 'ping')
+        self.assertIsInstance(command, tuple)
+        self.assertRaises(errors.NoSuchPluginError, ene_irc.registry.get_command, 'badplugin', 'ping')
+
+    def test_get_command_bad_command(self):
+        ene_irc = EneIRC(Server(self.hostname, self.config))
+        params = {'name': 'ping', 'permission': 'guest'}
+
+        ene_irc.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
+
+        self.assertIn('plugintest', ene_irc.registry._commands)
+        self.assertIn('ping', ene_irc.registry._commands['plugintest'])
+
+        command = ene_irc.registry.get_command('plugintest', 'pInG ')
+        self.assertIsInstance(command, tuple)
+        self.assertRaises(errors.NoSuchCommandError, ene_irc.registry.get_command, 'plugintest', 'badcommand')
+
+    @mock.patch.object(EneIRC, 'msg')
+    def test_ping_once(self, mock_msg):
+        ene_irc = EneIRC(Server(self.hostname, self.config))
+        params = {'name': 'ping', 'permission': 'guest'}
+
+        ene_irc.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
+
+        dest = containers.Destination(ene_irc, '#test')
+        message = containers.Message('>>> ping 1', dest, containers.Hostmask('Nick!~user@example.org'))
+        ene_irc._fire_command('plugintest', 'ping', ['1'], message)
+
+        mock_msg.assert_called_once_with(dest, 'pong')
+
+    @mock.patch.object(EneIRC, 'msg')
+    def test_ping_thrice(self, mock_msg):
+        ene_irc = EneIRC(Server(self.hostname, self.config))
+        params = {'name': 'ping', 'permission': 'guest'}
+
+        ene_irc.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
+
+        dest = containers.Destination(ene_irc, 'test_nick')
+        host = containers.Hostmask('test_nick!~user@example.org')
+        message = containers.Message('>>> ping 3', dest, host)
+        ene_irc._fire_command('plugintest', 'ping', ['3'], message)
+
+        mock_msg.assert_called_once_with(host, 'pong pong pong')
+
+    @mock.patch.object(EneIRC, 'msg')
+    def test_ping_with_option(self, mock_msg):
+        ene_irc = EneIRC(Server(self.hostname, self.config))
+        params = {'name': 'ping', 'permission': 'guest'}
+
+        ene_irc.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
+
+        dest = containers.Destination(ene_irc, 'test_nick')
+        host = containers.Hostmask('test_nick!~user@example.org')
+        message = containers.Message('>>> ping 3 --message=wong', dest, host)
+        ene_irc._fire_command('plugintest', 'ping', ['3', '--message=wong'], message)
+
+        mock_msg.assert_called_once_with(host, 'wong wong wong')
 
 
 class LanguageTests(EneIRCTestCase):
