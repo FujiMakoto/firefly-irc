@@ -54,20 +54,26 @@ class EneIRCTestCase(unittest.TestCase):
         """
         Set up the Unit Test
         """
+        """
+        Set up the Unit Test
+        """
         servers_config = EneIRC.load_configuration('servers')
         servers = []
         hostnames = servers_config.sections()
         for hostname in hostnames:
             servers.append((hostname, servers_config))
 
-        hostname, config = servers.pop()
-        self.ene_irc = EneIRC(Server(hostname, config))
+        self.hostname, self.config = servers.pop()
+
+
+class PluginEventTestCase(EneIRCTestCase):
 
     @mock.patch('ene_irc.IRCClient')
     @mock.patch.object(EneIRC, 'join')
     def test_event_bindings(self, mock_join, mock_class):
+        ene = EneIRC(Server(self.hostname, self.config))
         events = [(en, getattr(irc, en)) for en in dir(irc) if en.startswith('on_')]
-        ene_methods = dir(self.ene_irc)
+        ene_methods = dir(ene)
 
         # Make sure all of our event methods exist
         for event_name, meth_name in events:
@@ -76,19 +82,19 @@ class EneIRCTestCase(unittest.TestCase):
         # Make sure the correct events are fired
         for event_name, meth_name in events:
             # First we grab our event method and its argument names so we can mock patch it
-            method = getattr(self.ene_irc, meth_name)
+            method = getattr(ene, meth_name)
             margs = inspect.getargspec(method).args
             kwargs = {arg: (self.ARGS[arg] if arg in self.ARGS else None) for arg in margs if arg != 'self'}
 
-            with mock.patch('ene_irc.EneIRC.{m}'.format(m=meth_name), self.ene_irc._fire_event) as mock_method:
-                with mock.patch.object(self.ene_irc, '_fire_event') as mock_fire_event:
+            with mock.patch('ene_irc.EneIRC.{m}'.format(m=meth_name), ene._fire_event) as mock_method:
+                with mock.patch.object(ene, '_fire_event') as mock_fire_event:
                     # Fire the event dispatcher and make sure it fires off the correct plugin event in return
                     method(**kwargs)
                     called_events = [c[1][0] for c in mock_fire_event.mock_calls]
                     self.assertIn(meth_name, called_events)
 
 
-class PluginCommandTestCase(unittest.TestCase):
+class PluginCommandTestCase(EneIRCTestCase):
 
     class PluginTest(PluginAbstract):
 
@@ -112,75 +118,63 @@ class PluginCommandTestCase(unittest.TestCase):
 
             return _ping
 
-    def setUp(self, **kwargs):
-        """
-        Set up the Unit Test
-        """
-        servers_config = EneIRC.load_configuration('servers')
-        servers = []
-        hostnames = servers_config.sections()
-        for hostname in hostnames:
-            servers.append((hostname, servers_config))
-
-        self.hostname, self.config = servers.pop()
-
     def test_bind_command(self):
-        ene_irc = EneIRC(Server(self.hostname, self.config))
+        ene = EneIRC(Server(self.hostname, self.config))
         params = {'name': 'ping', 'permission': 'guest'}
 
-        ene_irc.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
+        ene.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
 
-        self.assertIn('plugintest', ene_irc.registry._commands)
-        self.assertIn('ping', ene_irc.registry._commands['plugintest'])
+        self.assertIn('plugintest', ene.registry._commands)
+        self.assertIn('ping', ene.registry._commands['plugintest'])
 
     def test_get_command(self):
-        ene_irc = EneIRC(Server(self.hostname, self.config))
+        ene = EneIRC(Server(self.hostname, self.config))
         params = {'name': 'ping', 'permission': 'guest'}
 
-        ene_irc.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
+        ene.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
 
-        self.assertIn('plugintest', ene_irc.registry._commands)
-        self.assertIn('ping', ene_irc.registry._commands['plugintest'])
+        self.assertIn('plugintest', ene.registry._commands)
+        self.assertIn('ping', ene.registry._commands['plugintest'])
 
-        command = ene_irc.registry.get_command('plugintest', 'ping')
+        command = ene.registry.get_command('plugintest', 'ping')
         self.assertIsInstance(command, tuple)
 
     def test_get_command_bad_plugin(self):
-        ene_irc = EneIRC(Server(self.hostname, self.config))
+        ene = EneIRC(Server(self.hostname, self.config))
         params = {'name': 'ping', 'permission': 'guest'}
 
-        ene_irc.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
+        ene.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
 
-        self.assertIn('plugintest', ene_irc.registry._commands)
-        self.assertIn('ping', ene_irc.registry._commands['plugintest'])
+        self.assertIn('plugintest', ene.registry._commands)
+        self.assertIn('ping', ene.registry._commands['plugintest'])
 
-        command = ene_irc.registry.get_command('PLUGINtest', 'ping')
+        command = ene.registry.get_command('PLUGINtest', 'ping')
         self.assertIsInstance(command, tuple)
-        self.assertRaises(errors.NoSuchPluginError, ene_irc.registry.get_command, 'badplugin', 'ping')
+        self.assertRaises(errors.NoSuchPluginError, ene.registry.get_command, 'badplugin', 'ping')
 
     def test_get_command_bad_command(self):
-        ene_irc = EneIRC(Server(self.hostname, self.config))
+        ene = EneIRC(Server(self.hostname, self.config))
         params = {'name': 'ping', 'permission': 'guest'}
 
-        ene_irc.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
+        ene.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
 
-        self.assertIn('plugintest', ene_irc.registry._commands)
-        self.assertIn('ping', ene_irc.registry._commands['plugintest'])
+        self.assertIn('plugintest', ene.registry._commands)
+        self.assertIn('ping', ene.registry._commands['plugintest'])
 
-        command = ene_irc.registry.get_command('plugintest', 'pInG ')
+        command = ene.registry.get_command('plugintest', 'pInG ')
         self.assertIsInstance(command, tuple)
-        self.assertRaises(errors.NoSuchCommandError, ene_irc.registry.get_command, 'plugintest', 'badcommand')
+        self.assertRaises(errors.NoSuchCommandError, ene.registry.get_command, 'plugintest', 'badcommand')
 
     @mock.patch.object(EneIRC, 'msg')
     def test_ping_once(self, mock_msg):
-        ene_irc = EneIRC(Server(self.hostname, self.config))
+        ene = EneIRC(Server(self.hostname, self.config))
         params = {'name': 'ping', 'permission': 'guest'}
 
-        ene_irc.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
+        ene.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
 
-        dest = containers.Destination(ene_irc, '#test')
+        dest = containers.Destination(ene, '#test')
         message = containers.Message('>>> ping 1', dest, containers.Hostmask('Nick!~user@example.org'))
-        ene_irc._fire_command('plugintest', 'ping', ['1'], message)
+        ene._fire_command('plugintest', 'ping', ['1'], message)
 
         mock_msg.assert_called_once_with(dest, 'pong')
 
@@ -200,15 +194,15 @@ class PluginCommandTestCase(unittest.TestCase):
 
     @mock.patch.object(EneIRC, 'msg')
     def test_ping_with_option(self, mock_msg):
-        ene_irc = EneIRC(Server(self.hostname, self.config))
+        ene = EneIRC(Server(self.hostname, self.config))
         params = {'name': 'ping', 'permission': 'guest'}
 
-        ene_irc.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
+        ene.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
 
-        dest = containers.Destination(ene_irc, 'test_nick')
+        dest = containers.Destination(ene, 'test_nick')
         host = containers.Hostmask('test_nick!~user@example.org')
         message = containers.Message('>>> ping 3 --message=wong', dest, host)
-        ene_irc._fire_command('plugintest', 'ping', ['3', '--message=wong'], message)
+        ene._fire_command('plugintest', 'ping', ['3', '--message=wong'], message)
 
         mock_msg.assert_called_once_with(host, 'wong wong wong')
 
@@ -218,11 +212,14 @@ class LanguageTests(EneIRCTestCase):
     Basic language instantiation tests
     """
     def test_default_instantiation(self):
-        self.assertIsInstance(self.ene_irc.language, LanguageInterface)
+        ene = EneIRC(Server(self.hostname, self.config))
+        self.assertIsInstance(ene.language, LanguageInterface)
 
     def test_aml_instantiation(self):
-        self.ene_irc._load_language_interface('aml')
-        self.assertIsInstance(self.ene_irc.language, AgentMLLanguage)
+        ene = EneIRC(Server(self.hostname, self.config))
+        ene._load_language_interface('aml')
+        self.assertIsInstance(ene.language, AgentMLLanguage)
 
     def test_bad_instantiation(self):
-        self.assertRaises(ImportError, self.ene_irc._load_language_interface, '_invalid_language_interface')
+        ene = EneIRC(Server(self.hostname, self.config))
+        self.assertRaises(ImportError, ene._load_language_interface, '_invalid_language_interface')
