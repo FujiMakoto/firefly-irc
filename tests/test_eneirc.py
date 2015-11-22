@@ -193,6 +193,32 @@ class PluginEventTestCase(EneIRCTestCase):
         mock_channelNotice.assert_not_called()
         mock__fire_command.assert_not_called()
 
+    @mock.patch.object(EneIRC, '_fire_event')
+    @mock.patch.object(EneIRC, '_fire_command')
+    @mock.patch.object(EneIRC, 'channelAction')
+    @mock.patch.object(EneIRC, 'privateAction')
+    def test_private_action_routed(self, mock_privateAction, mock_channelAction, mock__fire_command,
+                                    mock__fire_event):
+        ene = EneIRC(Server(self.hostname, self.config))
+        ene.action('test_nick!~user@example.org', '#testchan', 'waves')
+
+        self.assertEqual(mock_channelAction.call_count, 1)
+        mock_privateAction.assert_not_called()
+        mock__fire_command.assert_not_called()
+
+    @mock.patch.object(EneIRC, '_fire_event')
+    @mock.patch.object(EneIRC, '_fire_command')
+    @mock.patch.object(EneIRC, 'channelAction')
+    @mock.patch.object(EneIRC, 'privateAction')
+    def test_private_action_routed(self, mock_privateAction, mock_channelAction, mock__fire_command,
+                                    mock__fire_event):
+        ene = EneIRC(Server(self.hostname, self.config))
+        ene.action('test_nick!~user@example.org', 'test_nick', 'waves')
+
+        self.assertEqual(mock_privateAction.call_count, 1)
+        mock_channelAction.assert_not_called()
+        mock__fire_command.assert_not_called()
+
 
 class PluginCommandTestCase(EneIRCTestCase):
 
