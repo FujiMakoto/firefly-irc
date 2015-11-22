@@ -66,6 +66,45 @@ class EneIRCTestCase(unittest.TestCase):
         self.hostname, self.config = servers.pop()
 
 
+class MessageDeliveryTestCase(EneIRCTestCase):
+
+    @mock.patch.object(ene_irc.IRCClient, 'msg')
+    def test_channel_message(self, mock_msg):
+        ene = EneIRC(Server(self.hostname, self.config))
+
+        dest = containers.Destination(ene, '#testchan')
+        ene.msg(dest, 'Hello, world!')
+
+        mock_msg.assert_called_once_with(ene, '#testchan', 'Hello, world!', None)
+
+    @mock.patch.object(ene_irc.IRCClient, 'msg')
+    def test_user_message(self, mock_msg):
+        ene = EneIRC(Server(self.hostname, self.config))
+
+        host = containers.Hostmask('test_nick!~user@example.org')
+        ene.msg(host, 'Hello, world!')
+
+        mock_msg.assert_called_once_with(ene, 'test_nick', 'Hello, world!', None)
+
+    @mock.patch.object(ene_irc.IRCClient, 'notice')
+    def test_channel_notice(self, mock_notice):
+        ene = EneIRC(Server(self.hostname, self.config))
+
+        dest = containers.Destination(ene, '#testchan')
+        ene.notice(dest, 'Hello, world!')
+
+        mock_notice.assert_called_once_with(ene, '#testchan', 'Hello, world!')
+
+    @mock.patch.object(ene_irc.IRCClient, 'notice')
+    def test_user_notice(self, mock_notice):
+        ene = EneIRC(Server(self.hostname, self.config))
+
+        host = containers.Hostmask('test_nick!~user@example.org')
+        ene.notice(host, 'Hello, world!')
+
+        mock_notice.assert_called_once_with(ene, 'test_nick', 'Hello, world!')
+
+
 class PluginEventTestCase(EneIRCTestCase):
 
     @mock.patch('ene_irc.IRCClient')
