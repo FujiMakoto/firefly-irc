@@ -136,11 +136,36 @@ class PluginEventTestCase(EneIRCTestCase):
     @mock.patch.object(EneIRC, '_fire_command')
     def test_command_call(self, mock__fire_command, mock__fire_event):
         ene = EneIRC(Server(self.hostname, self.config))
-
         ene.privmsg('test_nick!~user@example.org', '#testchan', '>>> ping 3')
 
         self.assertTrue(mock__fire_command.called)
         mock__fire_event.assert_not_called()
+
+    @mock.patch.object(EneIRC, '_fire_event')
+    @mock.patch.object(EneIRC, '_fire_command')
+    @mock.patch.object(EneIRC, 'channelMessage')
+    @mock.patch.object(EneIRC, 'privateMessage')
+    def test_channel_message_routed(self, mock_privateMessage, mock_channelMessage, mock__fire_command,
+                                    mock__fire_event):
+        ene = EneIRC(Server(self.hostname, self.config))
+        ene.privmsg('test_nick!~user@example.org', '#testchan', 'Hello, world!')
+
+        self.assertEqual(mock_channelMessage.call_count, 1)
+        mock_privateMessage.assert_not_called()
+        mock__fire_command.assert_not_called()
+
+    @mock.patch.object(EneIRC, '_fire_event')
+    @mock.patch.object(EneIRC, '_fire_command')
+    @mock.patch.object(EneIRC, 'channelMessage')
+    @mock.patch.object(EneIRC, 'privateMessage')
+    def test_private_message_routed(self, mock_privateMessage, mock_channelMessage, mock__fire_command,
+                                    mock__fire_event):
+        ene = EneIRC(Server(self.hostname, self.config))
+        ene.privmsg('test_nick!~user@example.org', 'test_nick', 'Hello, world!')
+
+        self.assertEqual(mock_privateMessage.call_count, 1)
+        mock_channelMessage.assert_not_called()
+        mock__fire_command.assert_not_called()
 
 
 class PluginCommandTestCase(EneIRCTestCase):
