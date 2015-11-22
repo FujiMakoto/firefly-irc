@@ -132,6 +132,16 @@ class PluginEventTestCase(EneIRCTestCase):
                     called_events = [c[1][0] for c in mock_fire_event.mock_calls]
                     self.assertIn(meth_name, called_events)
 
+    @mock.patch.object(EneIRC, '_fire_event')
+    @mock.patch.object(EneIRC, '_fire_command')
+    def test_command_call(self, mock__fire_command, mock__fire_event):
+        ene = EneIRC(Server(self.hostname, self.config))
+
+        ene.privmsg('test_nick!~user@example.org', '#testchan', '>>> ping 3')
+
+        self.assertTrue(mock__fire_command.called)
+        mock__fire_event.assert_not_called()
+
 
 class PluginCommandTestCase(EneIRCTestCase):
 
