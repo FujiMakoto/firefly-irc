@@ -8,7 +8,4 @@ appdirs~=1.4.0
 agentml~=0.3.1
 venusian~=1.0
 ircmessage~=0.1
-
-
-# Plugin: DateTime
 arrow~=0.7.0
