@@ -101,6 +101,7 @@ class IdentityTestCase(unittest.TestCase):
         self.assertEqual(self.identity.container, 'test')
         self.assertEqual(self.identity.name, 'Testing')
         self.assertListEqual(self.identity.aliases, ['tester', 'foo', 'bar', 'ba z'])
+        self.assertListEqual(self.identity.nicks, ['Testing', 'tester', 'foo', 'bar', 'ba z'])
         self.assertEqual(self.identity.gender, 'Male')
 
         self.assertIsInstance(self.identity.epoch, arrow.Arrow)

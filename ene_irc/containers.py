@@ -118,6 +118,10 @@ class Identity(object):
     def age(self):
         return self.epoch.humanize(only_distance=True)
 
+    @property
+    def nicks(self):
+        return [self.name] + self.aliases
+
     def __repr__(self):
         return '<EneIRC Container: Identity({id}, ConfigParser)>'.format(id=self.identity)
 
@@ -209,7 +213,7 @@ class ServerInfo(object):
 
         @type   key:    C{str}
 
-        @type   value:  C{str}
+        @type   value:  C{str}ess
 
         @return:    True if processed, False if unrecognized
         @rtype:     C{bool}
