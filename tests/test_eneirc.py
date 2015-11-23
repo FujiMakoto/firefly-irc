@@ -112,6 +112,8 @@ class PluginEventTestCase(EneIRCTestCase):
     @mock.patch.object(EneIRC, 'join')
     def test_event_bindings(self, mock_join, mock_class):
         ene = EneIRC(Server(self.hostname, self.config))
+        ene.language.get_reply = mock.Mock()
+        ene.language.get_reply.return_value = None
         events = [(en, getattr(irc, en)) for en in dir(irc) if en.startswith('on_')]
         ene_methods = dir(ene)
 
@@ -163,6 +165,8 @@ class PluginEventTestCase(EneIRCTestCase):
     def test_channel_message_routed(self, mock_privateMessage, mock_channelMessage, mock__fire_command,
                                     mock__fire_event):
         ene = EneIRC(Server(self.hostname, self.config))
+        ene.language.get_reply = mock.Mock()
+        ene.language.get_reply.return_value = None
         ene.privmsg('test_nick!~user@example.org', '#testchan', 'Hello, world!')
 
         self.assertEqual(mock_channelMessage.call_count, 1)
@@ -176,6 +180,8 @@ class PluginEventTestCase(EneIRCTestCase):
     def test_private_message_routed(self, mock_privateMessage, mock_channelMessage, mock__fire_command,
                                     mock__fire_event):
         ene = EneIRC(Server(self.hostname, self.config))
+        ene.language.get_reply = mock.Mock()
+        ene.language.get_reply.return_value = None
         ene.privmsg('test_nick!~user@example.org', 'test_nick', 'Hello, world!')
 
         self.assertEqual(mock_privateMessage.call_count, 1)
