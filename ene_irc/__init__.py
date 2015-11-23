@@ -55,6 +55,7 @@ class EneIRC(IRCClient):
         self.server_info = ServerInfo()
         self.server = server
         self._setup()
+        self._load_core_language_files()
 
         # Finally, now that everything is set up, load our plugins
         self.plugins = pkg_resources.get_entry_map('ene_irc', 'ene_irc.plugins')
@@ -158,6 +159,17 @@ class EneIRC(IRCClient):
             raise LanguageImportError('Language "{lang}" does not have a defined __LANGUAGE_CLASS__'
                                       .format(lang=language))
 
+    def _load_core_language_files(self):
+        """
+        Load any core language files
+        """
+        lang_dir = os.path.join(self.CONFIG_DIR, 'lang', self.server.identity.container)
+        if not os.path.exists(lang_dir):
+            self._log.debug('Creating new language path: %s', lang_dir)
+            os.makedirs(lang_dir, 0o755)
+
+        self.language.load_directory(lang_dir)
+
     def _setup(self):
         """
         Run generic setup tasks.
@@ -174,12 +186,18 @@ class EneIRC(IRCClient):
         if not os.path.isdir(self.DATA_DIR):
             os.makedirs(self.DATA_DIR, 0o755)
 
-    def _fire_event(self, event_name, **kwargs):
+    def _fire_event(self, event_name, has_reply=False, is_command=False, **kwargs):
         """
         Fire an IRC event.
 
         @type   event_name: C{str}
         @param  event_name: Name of the event to fire, see ene_irc.irc for a list of event constants
+
+        @type   has_reply:  bool
+        @param  has_reply:  Indicates that this event triggered a language response before firing
+
+        @type   is_command: bool
+        @param  is_command: Indicates that this event triggered a command before firing
 
         @param  kwargs:     Arbitrary event arguments
         """
@@ -187,6 +205,16 @@ class EneIRC(IRCClient):
         events = self.registry.get_events(event_name)
 
         for cls, func, params in events:
+            # Commands ok?
+            if is_command and not params['command_ok']:
+                self._log.info('Event is not responding to command triggers, skipping')
+                continue
+
+            # Replies ok?
+            if has_reply and not params['reply_ok']:
+                self._log.info('Event is not responding to language triggers, skipping')
+                continue
+
             self._log.info('Firing event: %s (%s); Params: %s', str(cls), str(func), str(params))
             func(cls, **kwargs)
 
@@ -389,21 +417,35 @@ class EneIRC(IRCClient):
 
         @type   message:    C{str}
         """
-        message = Message(message, Destination(self, channel), Hostmask(user))
+        message    = Message(message, Destination(self, channel), Hostmask(user))
+        is_command = False
+        has_reply  = False
 
+        # Is the message a command?
         if message.is_command:
             self._log.debug('Message registered as a command: %s', repr(message))
+            is_command = True
+
             command_plugin, command_name, command_args = message.command_parts
             self._fire_command(command_plugin, command_name, command_args, message)
-            return
 
-        self._fire_event(irc.on_message, message=message)
+        # Do we have a language reply?
+        if not is_command:
+            reply = self.language.get_reply(message.stripped)
+
+            if reply:
+                self._log.debug('Reply matched: %s', reply)
+                has_reply = True
+
+                self.msg(channel, reply)
+
+        self._fire_event(irc.on_message, has_reply, is_command, message=message)
 
         # Fire custom events
         if message.destination.is_channel:
-            self.channelMessage(message)
+            self.channelMessage(message, has_reply, is_command)
         elif message.destination.is_user:
-            self.privateMessage(message)
+            self.privateMessage(message, has_reply, is_command)
 
     def joined(self, channel):
         """
@@ -596,9 +638,9 @@ class EneIRC(IRCClient):
         self._fire_event(irc.on_action, action=action)
 
         if action.destination.is_channel:
-            self.channelAction(action)
+            self.channelAction(action, False)
         elif action.destination.is_user:
-            self.privateAction(action)
+            self.privateAction(action, False)
 
     def topicUpdated(self, user, channel, newTopic):
         """
@@ -647,23 +689,35 @@ class EneIRC(IRCClient):
     # Custom IRC Events            #
     ################################
 
-    def channelMessage(self, message):
+    def channelMessage(self, message, has_reply, is_command):
         """
         Called when I have a message from a user to a channel.
 
         @type   message:    Message
         @param  message:    The message container object.
-        """
-        self._fire_event(irc.on_channel_message, message=message)
 
-    def privateMessage(self, message):
+        @type   has_reply:  bool
+        @param  has_reply:  Indicates that this event triggered a language response before firing
+
+        @type   is_command: bool
+        @param  is_command: Indicates that this event triggered a command before firing
+        """
+        self._fire_event(irc.on_channel_message, has_reply, is_command, message=message)
+
+    def privateMessage(self, message, has_reply, is_command):
         """
         Called when I have a message from a user to me.
 
         @type   message:    Message
         @param  message:    The message container object.
+
+        @type   has_reply:  bool
+        @param  has_reply:  Indicates that this event triggered a language response before firing
+
+        @type   is_command: bool
+        @param  is_command: Indicates that this event triggered a command before firing
         """
-        self._fire_event(irc.on_private_message, message=message)
+        self._fire_event(irc.on_private_message, has_reply, is_command, message=message)
 
     def channelNotice(self, notice):
         """
@@ -683,23 +737,29 @@ class EneIRC(IRCClient):
         """
         self._fire_event(irc.on_private_notice, notice=notice)
 
-    def channelAction(self, action):
+    def channelAction(self, action, has_reply):
         """
         Called when I see a user perform an ACTION on a channel.
 
         @type   action: Message
         @param  action: The action (message) container object.
-        """
-        self._fire_event(irc.on_channel_action, action=action)
 
-    def privateAction(self, action):
+        @type   has_reply:  bool
+        @param  has_reply:  Indicates that this event triggered a language response before firing
+        """
+        self._fire_event(irc.on_channel_action, has_reply, action=action)
+
+    def privateAction(self, action, has_reply):
         """
         Called when I see a user perform an ACTION to me.
 
         @type   action: Message
         @param  action: The action (message) container object.
+
+        @type   has_reply:  bool
+        @param  has_reply:  Indicates that this event triggered a language response before firing
         """
-        self._fire_event(irc.on_private_action, action=action)
+        self._fire_event(irc.on_private_action, has_reply, action=action)
 
     ################################
     # Low-level IRC Events         #
