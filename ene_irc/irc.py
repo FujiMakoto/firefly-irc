@@ -62,7 +62,7 @@ class event(object):
     """
     IRC event decorator.
     """
-    def __init__(self, event_name=None, permission=None):
+    def __init__(self, event_name=None, permission=None, **kwargs):
         """
         @type   event_name: C{str} or C{None}
         @param  event_name: Name of the event. If None, uses the name of the function.
@@ -74,6 +74,8 @@ class event(object):
         """
         self.event_name = event_name
         self.permission = permission
+        self.command_ok = kwargs.get('command_ok', False)
+        self.reply_ok   = kwargs.get('reply_ok', False)
 
     def __call__(self, func):
         """
@@ -85,7 +87,12 @@ class event(object):
 
         def callback(scanner, name, ob):
             event_name = self.event_name or func.__name__
-            params = {'name': event_name, 'permission': self.permission}
+            params = {
+                'name': event_name,
+                'permission': self.permission,
+                'command_ok': self.command_ok,
+                'reply_ok': self.reply_ok
+            }
 
             scanner.ene.registry.bind_event(event_name, ob, func, params)
             return func
