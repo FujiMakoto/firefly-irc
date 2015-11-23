@@ -1,5 +1,7 @@
 import shlex
 
+import arrow
+
 import ene_irc
 import logging
 import socket
@@ -23,6 +25,7 @@ class Server(object):
 
         self.hostname       = hostname
         self.enabled        = config.getboolean(hostname, 'Enabled')
+        self.identity       = None
         self.auto_connect   = config.getboolean(hostname, 'Autoconnect')
         self.nick           = config.get(hostname, 'Nick')
         self.username       = config.get(hostname, 'Username')
@@ -36,6 +39,7 @@ class Server(object):
 
         self.channels = []
         self._load_channels()
+        self._load_identity()
 
     def _load_channels(self):
         config_filename = re.sub('\W', '_', self.hostname)
@@ -51,6 +55,22 @@ class Server(object):
         for channel in channels:
             self.channels.append(Channel(self, channel, config))
 
+    def _load_identity(self):
+        identity = self._config.get(self.hostname, 'Identity')
+        config_filename = identity.lower().strip().replace(' ', '_')
+
+        # Attempt to load the identity configuration
+        try:
+            config = ene_irc.EneIRC.load_configuration(config_filename, basedir='identities')
+        except ValueError:
+            self._log.error('Unable to load identity configuration file: %s', config_filename)
+            self._log.error('Falling back to default configuration')
+
+            identity = 'Default'
+            config = ene_irc.EneIRC.load_configuration('default', basedir='identities')
+
+        self.identity = Identity(identity, config)
+
     def _parse_command_prefix(self, prefix):
         """
         # Make sure we're not trying to stupidly use a word character as the command prefix
@@ -65,6 +85,44 @@ class Server(object):
             return False
 
         return prefix
+
+
+class Identity(object):
+
+    def __init__(self, identity, config):
+        """
+        @type   identity:   str
+        @param  identity:   Identity name
+
+        @type   config:     ConfigParser.ConfigParser
+        @param  config:     Server configuration instance
+        """
+        self._log = logging.getLogger('ene_irc.identity')
+        self._log.info('Loading %s identity configuration', identity)
+        self._config = config
+
+        self.identity   = identity
+        self.name       = config.get(identity, 'Name')
+        self.container  = config.get(identity, 'Container')
+
+        aliases = config.get(identity, 'Aliases')
+        if aliases:
+            self.aliases = [alias.lower().strip() for alias in aliases.split(',')]
+        else:
+            self.aliases = None
+
+        self.epoch  = arrow.get(config.getint(identity, 'Epoch'))
+        self.gender = config.get(identity, 'Gender')
+
+    @property
+    def age(self):
+        return self.epoch.humanize(only_distance=True)
+
+    def __repr__(self):
+        return '<EneIRC Container: Identity({id}, ConfigParser)>'.format(id=self.identity)
+
+    def __str__(self):
+        return self.name
 
 
 class Channel(object):
