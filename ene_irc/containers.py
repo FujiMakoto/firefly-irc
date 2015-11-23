@@ -109,7 +109,7 @@ class Identity(object):
         if aliases:
             self.aliases = [alias.lower().strip() for alias in aliases.split(',')]
         else:
-            self.aliases = None
+            self.aliases = []
 
         self.epoch  = arrow.get(config.getint(identity, 'Epoch'))
         self.gender = config.get(identity, 'Gender')
@@ -580,6 +580,11 @@ class Message(object):
     NOTICE  = "notice"
     ACTION  = "action"
 
+    # Mention regexes
+    MENTION_START     = r'^(?P<nick>{nicks})(?P<separator>[^\w\s])?\s*(?P<message>.*)'
+    MENTION_END       = r'^(?P<message>.+?)(?:(?P<separator>[^\w\s])\s*)*?(?P<nick>{nicks})(?P<ender>[^\w\s])?$'
+    MENTION_ANYWHERE  = r'(?P<message>.*\s(?P<nick>{nicks})\W.*)'
+
     def __init__(self, message, destination, source, message_type=MESSAGE):
         """
         @type   message:        str
@@ -601,6 +606,31 @@ class Message(object):
         self.type = message_type
 
         self._command = []
+
+    def get_mentions(self, nicks, location=MENTION_START):
+        """
+        Test to see if someone has been mentioned in this message
+
+        @type   nicks:  list or tuple
+        @param  nicks:  The nicks to match against
+
+        @type   location:   str
+        @param  location:   The location regex to use for matching. Must contain at least a nick and message group.
+
+        @rtype:     tuple of (str, str, re._sre.SRE_Match) or None
+        @return:    Tuple of nick, message, match on success, None on failure
+        """
+        # Format our regex
+        nicks = [re.escape(nick) for nick in nicks]
+        regex = location.format(nicks='|'.join(nicks))
+
+        # Test for a match
+        match = re.match(regex, self.stripped, re.IGNORECASE)
+        if not match:
+            return None
+
+        # Return the parts
+        return match.group('nick'), match.group('message'), match
 
     @property
     def is_command(self):

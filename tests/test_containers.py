@@ -267,3 +267,32 @@ class MessageTestCase(unittest.TestCase):
         self.assertFalse(message.is_message)
         self.assertFalse(message.is_notice)
         self.assertTrue(message.is_action)
+
+    def test_get_mentions_start(self):
+        test = 'Testcase: hello! This, this is a test.'
+        message = Message(test, self.mock_ene, self.hostmask)
+
+        r = message.get_mentions(['casetest', 'TestCase'])
+        self.assertIsNotNone(r)
+
+        self.assertTupleEqual(r, ('Testcase', 'hello! This, this is a test.', r[2]))
+        self.assertEqual(r[2].group('separator'), ':')
+
+    def test_get_mentions_end(self):
+        test = 'Hello! This, this TestCase is a test, TestCase,'
+        message = Message(test, self.mock_ene, self.hostmask)
+
+        r = message.get_mentions(['casetest', 'TestCase'], message.MENTION_END)
+        self.assertIsNotNone(r)
+
+        self.assertTupleEqual(r, ('TestCase', 'Hello! This, this TestCase is a test', r[2]))
+        self.assertEqual(r[2].group('ender'), ',')
+
+    def test_get_mentions_anywhere(self):
+        test = 'Hello! This, this testCase is a test.'
+        message = Message(test, self.mock_ene, self.hostmask)
+
+        r = message.get_mentions(['casetest', 'TestCase'], message.MENTION_ANYWHERE)
+        self.assertIsNotNone(r)
+
+        self.assertTupleEqual(r, ('testCase', 'Hello! This, this testCase is a test.', r[2]))
