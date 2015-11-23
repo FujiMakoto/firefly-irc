@@ -142,6 +142,8 @@ class PluginEventTestCase(EneIRCTestCase):
     def test_command_call(self, mock_privateMessage, mock_channelMessage, mock__fire_command,
                           mock__fire_event):
         ene = EneIRC(Server(self.hostname, self.config))
+        ene.language.get_reply = mock.Mock()
+        ene.language.get_reply.return_value = None
         ene.privmsg('test_nick!~user@example.org', '#testchan', '>>> plugintest ping 3')
 
         _fire_command_args = mock__fire_command.call_args_list
