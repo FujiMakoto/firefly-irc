@@ -417,28 +417,57 @@ class EneIRC(IRCClient):
 
         @type   message:    C{str}
         """
-        message    = Message(message, Destination(self, channel), Hostmask(user))
-        is_command = False
-        has_reply  = False
+        hostmask    = Hostmask(user)
+        destination = Destination(self, channel)
+        message     = Message(message, destination, hostmask)
+        is_command  = False
+        has_reply   = False
+        reply_dest  = destination
+        groups = set()
 
         # Is the message a command?
         if message.is_command:
             self._log.debug('Message registered as a command: %s', repr(message))
             is_command = True
+            groups.add('command')
 
             command_plugin, command_name, command_args = message.command_parts
             self._fire_command(command_plugin, command_name, command_args, message)
 
-        # Do we have a language reply?
-        if not is_command:
-            reply = self.language.get_reply(message.stripped)
+        # Is this a private message?
+        if message.destination.is_user:
+            groups.add(None)
+            groups.add('private')
+            reply_dest = hostmask
 
-            if reply:
-                self._log.debug('Reply matched: %s', reply)
-                has_reply = True
+        # Have we been mentioned in this message?
+        nicks = self.server.identity.nicks
+        try:
+            nick, raw_message, match = message.get_mentions(nicks)
+            groups.add(None)
+        except TypeError:
+            self._log.debug('Message has no mentions at the beginning')
 
-                self.msg(channel, reply)
+            try:
+                nick, raw_message, match = message.get_mentions(nicks, message.MENTION_END)
+                groups.add(None)
+            except TypeError:
+                self._log.debug('Message has no mentions at the end')
+                nick = self.nickname
+                raw_message = message.stripped
+                match = False
+                if message.destination.is_channel:
+                    groups.add('public')
 
+        # Do we have a language response?
+        reply = self.language.get_reply(raw_message, groups=groups)
+        if reply:
+            self._log.debug('Reply matched: %s', reply)
+            has_reply = True
+
+            self.msg(reply_dest, reply)
+
+        # Fire global event
         self._fire_event(irc.on_message, has_reply, is_command, message=message)
 
         # Fire custom events
