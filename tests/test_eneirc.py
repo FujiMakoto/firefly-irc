@@ -105,6 +105,7 @@ class MessageDeliveryTestCase(EneIRCTestCase):
         mock_notice.assert_called_once_with(ene, 'test_nick', 'Hello, world!')
 
 
+# noinspection PyPep8Naming
 class PluginEventTestCase(EneIRCTestCase):
 
     @mock.patch('ene_irc.IRCClient')
@@ -134,12 +135,26 @@ class PluginEventTestCase(EneIRCTestCase):
 
     @mock.patch.object(EneIRC, '_fire_event')
     @mock.patch.object(EneIRC, '_fire_command')
-    def test_command_call(self, mock__fire_command, mock__fire_event):
+    @mock.patch.object(EneIRC, 'channelMessage')
+    @mock.patch.object(EneIRC, 'privateMessage')
+    def test_command_call(self, mock_privateMessage, mock_channelMessage, mock__fire_command,
+                          mock__fire_event):
         ene = EneIRC(Server(self.hostname, self.config))
-        ene.privmsg('test_nick!~user@example.org', '#testchan', '>>> ping 3')
+        ene.privmsg('test_nick!~user@example.org', '#testchan', '>>> plugintest ping 3')
 
+        _fire_command_args = mock__fire_command.call_args_list
         self.assertTrue(mock__fire_command.called)
-        mock__fire_event.assert_not_called()
+        self.assertEqual(_fire_command_args[0][0][0], 'plugintest')
+        self.assertEqual(_fire_command_args[0][0][1], 'ping')
+        self.assertListEqual(_fire_command_args[0][0][2], ['3'])
+
+        _fire_event_args = mock__fire_event.call_args_list
+        self.assertFalse(_fire_event_args[0][0][1], 'has_reply was True when it should have been False')
+        self.assertTrue(_fire_event_args[0][0][2], 'is_command was False when it should have been True')
+
+        channelMessage_args = mock_channelMessage.call_args_list
+        self.assertFalse(channelMessage_args[0][0][1], 'has_reply was True when it should have been False')
+        self.assertTrue(channelMessage_args[0][0][2], 'is_command was False when it should have been True')
 
     @mock.patch.object(EneIRC, '_fire_event')
     @mock.patch.object(EneIRC, '_fire_command')
@@ -299,7 +314,7 @@ class PluginCommandTestCase(EneIRCTestCase):
         ene.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
 
         dest = containers.Destination(ene, '#test')
-        message = containers.Message('>>> ping 1', dest, containers.Hostmask('Nick!~user@example.org'))
+        message = containers.Message('>>> plugintest ping 1', dest, containers.Hostmask('Nick!~user@example.org'))
         ene._fire_command('plugintest', 'ping', ['1'], message)
 
         mock_msg.assert_called_once_with(dest, 'pong')
@@ -313,7 +328,7 @@ class PluginCommandTestCase(EneIRCTestCase):
 
         dest = containers.Destination(ene_irc, 'test_nick')
         host = containers.Hostmask('test_nick!~user@example.org')
-        message = containers.Message('>>> ping 3', dest, host)
+        message = containers.Message('>>> plugintest ping 3', dest, host)
         ene_irc._fire_command('plugintest', 'ping', ['3'], message)
 
         mock_msg.assert_called_once_with(host, 'pong pong pong')
@@ -327,7 +342,7 @@ class PluginCommandTestCase(EneIRCTestCase):
 
         dest = containers.Destination(ene, 'test_nick')
         host = containers.Hostmask('test_nick!~user@example.org')
-        message = containers.Message('>>> ping 3 --message=wong', dest, host)
+        message = containers.Message('>>> plugintest ping 3 --message=wong', dest, host)
         ene._fire_command('plugintest', 'ping', ['3', '--message=wong'], message)
 
         mock_msg.assert_called_once_with(host, 'wong wong wong')

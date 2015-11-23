@@ -2,11 +2,12 @@ import os
 import unittest
 from ConfigParser import ConfigParser
 
+import arrow
 import mock
 import socket
 
 from ene_irc import EneIRC
-from ene_irc.containers import Server, Channel, ServerInfo, Destination, Hostmask, Message
+from ene_irc.containers import Server, Channel, ServerInfo, Destination, Hostmask, Message, Identity
 
 
 class ServerTestCase(unittest.TestCase):
@@ -20,8 +21,18 @@ class ServerTestCase(unittest.TestCase):
 
         self.channel_config = ConfigParser()
         self.channel_config.read(os.path.join(self.config_path, 'servers', 'irc.example.org.cfg'))
-        
-        mock_load_configuration.return_value = self.channel_config
+
+        self.identity_config = ConfigParser()
+        self.identity_config.read(os.path.join(self.config_path, 'identities', 'test.cfg'))
+
+        def load_configuration(name, plugin=None, basedir=None, default=None):
+            if basedir == 'servers':
+                return self.channel_config
+
+            if basedir == 'identities':
+                return self.identity_config
+
+        mock_load_configuration.side_effect = load_configuration
         self.server = Server('irc.example.org', self.server_config)
 
     def test_server_container_attributes(self):
@@ -69,6 +80,35 @@ class ServerTestCase(unittest.TestCase):
         self.assertEqual(third.name, '#third')
         self.assertFalse(third.autojoin)
         self.assertEqual(third.password, 'secret')
+
+
+class IdentityTestCase(unittest.TestCase):
+
+    @mock.patch.object(EneIRC, 'load_configuration')
+    def setUp(self, mock_load_configuration):
+        self.config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'config')
+
+        self.identity_config = ConfigParser()
+        self.identity_config.read(os.path.join(self.config_path, 'identities', 'test.cfg'))
+
+        mock_load_configuration.return_value = self.identity_config
+        self.identity = Identity('test', self.identity_config)
+
+    def test_identity_container_attributes(self):
+        self.assertIsInstance(self.identity._config, ConfigParser)
+
+        self.assertEqual(self.identity.identity, 'test')
+        self.assertEqual(self.identity.container, 'test')
+        self.assertEqual(self.identity.name, 'Testing')
+        self.assertListEqual(self.identity.aliases, ['tester', 'foo', 'bar', 'ba z'])
+        self.assertEqual(self.identity.gender, 'Male')
+
+        self.assertIsInstance(self.identity.epoch, arrow.Arrow)
+        self.assertEqual(self.identity.epoch.timestamp, 1443657600)
+
+        now = arrow.now()
+        distance = self.identity.epoch.humanize(now, only_distance=True)
+        self.assertEqual(self.identity.age, distance)
 
 
 class ServerInfoTestCase(unittest.TestCase):
