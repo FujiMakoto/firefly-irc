@@ -703,70 +703,104 @@ class Message(object):
 
 class Response(object):
 
-    def __init__(self, ene, destination):
+    DEST_CHANNEL = 'channel'
+    DEST_USER    = 'user'
+
+    def __init__(self, ene, request, user, channel=None, destination=None):
         """
         @type   ene:            ene_irc.EneIRC
-        @type   destination:    Destination or Hostmask
-        """
-        self._log        = logging.getLogger('ene_irc.response')
-        self.ene         = ene
-        self.destination = destination
-        self._messages   = []
-        self._delivered  = []
-        self.block       = False  # Set to True to stop any further event calls, this should be used with great care.
-        self.sent        = False  # Becomes True after all messages in the queue have been delivered.
 
-    def add_message(self, message):
+        @type   request:        Message
+        @param  request:        The message we are responding to.
+
+        @param  user:           The user that sent the message we're responding to.
+        @type   user:           Hostmask
+
+        @param  channel:        The channel (if we're responding to a message sent in a channel)
+        @type   channel:        Destination or None
+
+        @param  destination:    The default destination. If we're replying to a query, it's the user, otherwise channel.
+        @type   destination:    str or None
+        """
+        self._log         = logging.getLogger('ene_irc.response')
+        self.ene          = ene
+        self.request      = request
+        self.channel      = channel
+        self.user         = user
+        self._messages    = []
+        self._delivered   = []
+        self._destination = destination or (
+            self.DEST_CHANNEL if self.request.destination.is_channel else self.DEST_USER
+        )
+        self.block        = False  # Set to True to stop any further event calls, this should be used with great care.
+        self.sent         = False  # Becomes True after all messages in the queue have been delivered.
+
+    def add_message(self, message, destination=None):
         """
         Add a message to the queue
-        @type   message:    str
+
+        @type   message:        str
+
+        @type   destination:    str
+        @param  destination:    Either user or channel. If None, will use the default specified destination.
         """
         self._log.debug('Adding new response message')
-        self._messages.append(('message', message))
+        self._messages.append(('message', message, destination))
 
-    def add_action(self, action):
+    def add_action(self, action, destination=None):
         """
         Add an action to the queue
+
         @type   action: str
+
+        @type   destination:    str
+        @param  destination:    Either user or channel. If None, will use the default specified destination.
         """
         self._log.debug('Adding new response action')
-        self._messages.append(('action', action))
+        self._messages.append(('action', action, destination))
 
-    def add_notice(self, notice):
+    def add_notice(self, notice, destination=None):
         """
         Add a notice to the queue
+
         @type   notice: str
+
+        @type   destination:    str
+        @param  destination:    Either user or channel. If None, will use the default specified destination.
         """
         self._log.debug('Adding new response notice')
-        self._messages.append(('notice', notice))
+        self._messages.append(('notice', notice, destination))
 
     def send(self):
         """
         Send all queued messages
-        @raise  ValueError: Raised if a message has an invalid type. This should never happen with proper API usage.
         """
-        for msg_type, msg in self._messages:
-            if msg_type == 'message':
-                self._log.info('Delivering message')
-                self.ene.msg(self.destination, msg)
-                self._delivered.append((msg_type, msg, arrow.now()))
+        for msg_type, msg, dest in self._messages:
+            try:
+                if msg_type == 'message':
+                    self._log.info('Delivering message')
+                    self.ene.msg(self.get_destination(dest) if dest else self.destination, msg)
+                    self._delivered.append((msg_type, msg, arrow.now()))
+                    continue
+
+                if msg_type == 'action':
+                    self._log.info('Performing action')
+                    self.ene.describe(self.get_destination(dest) if dest else self.destination, msg)
+                    self._delivered.append((msg_type, msg, arrow.now()))
+                    continue
+
+                if msg_type == 'notice':
+                    self._log.info('Delivering notice')
+                    self.ene.notice(self.get_destination(dest) if dest else self.destination, msg)
+                    self._delivered.append((msg_type, msg, arrow.now()))
+                    continue
+            except ValueError:
+                self._log.exception('An error occurred while attempting to process a message for delivery')
                 continue
 
-            if msg_type == 'action':
-                self._log.info('Performing action')
-                self.ene.describe(self.destination, msg)
-                self._delivered.append((msg_type, msg, arrow.now()))
-                continue
-
-            if msg_type == 'notice':
-                self._log.info('Delivering notice')
-                self.ene.notice(self.destination, msg)
-                self._delivered.append((msg_type, msg, arrow.now()))
-                continue
-
-            self._log.error('Unespected message type: %s', msg_type)
-            self.clear()
-            raise ValueError('Unexpected message type: %s', msg_type)
+            # raise ValueError('Unexpected message type: %s', msg_type)
+            self._log.error('Unexpected message type: %s', msg_type)
+            continue
 
         self._log.info('All queued messages delivered')
         self.sent = True
@@ -779,21 +813,58 @@ class Response(object):
         self._log.info('Clearing all queued response messages')
         self._messages = []
 
+    def get_destination(self, dest_type):
+        """
+        Get the destination of the specified type. To get the default destination, use the destination property instead.
+
+        @param  dest_type:  Either channel or user.
+        @type   dest_type:  str
+
+        @rtype:     Destination, Hostmask or None
+        @return:    The channel or user. If we're responding to a query and channel is requested, will return None.
+
+        @raise  ValueError: Raised if the supplied destination type is invalid. Use class constants to prevent this.
+        """
+        if dest_type == self.DEST_CHANNEL:
+            return self.channel
+
+        if dest_type == self.DEST_USER:
+            return self.user
+
+        raise ValueError('Unrecognized destination type: %s', dest_type)
+
     @property
     def queue(self):
         return self._messages
 
     @property
     def messages(self):
-        return [msg for msg_type, msg in self._messages if msg_type == 'message']
+        return [msg for msg_type, msg, __ in self._messages if msg_type == 'message']
 
     @property
     def actions(self):
-        return [msg for msg_type, msg in self._messages if msg_type == 'action']
+        return [msg for msg_type, msg, __ in self._messages if msg_type == 'action']
 
     @property
     def notices(self):
-        return [msg for msg_type, msg in self._messages if msg_type == 'notice']
+        return [msg for msg_type, msg, __ in self._messages if msg_type == 'notice']
+
+    @property
+    def destination(self):
+        if self._destination == self.DEST_CHANNEL:
+            return self.channel
+
+        if self._destination == self.DEST_USER:
+            return self.user
+
+        raise ValueError('Unrecognized destination type: %s', self._destination)
+
+    @destination.setter
+    def destination(self, value):
+        if value not in (self.DEST_CHANNEL, self.DEST_USER):
+            raise ValueError('Unrecognized destination type: %s', value)
+
+        self._destination = value
 
     def __repr__(self):
         return '<EneIRC Container: Response(ene, Destination(ene, "{d}"))>'.format(d=self.destination.raw)

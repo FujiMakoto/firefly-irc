@@ -307,10 +307,15 @@ class ResponseTestCase(unittest.TestCase):
         mock_ene = mock.MagicMock(server_info=mock_server_info)
         self.mock_ene = mock_ene
 
-        self.destination = Destination(mock_ene, '#testchan')
+        self.channel_destination = Destination(mock_ene, '#testchan')
+        self.user_destination = Destination(mock_ene, 'test_nick')
+        self.hostmask = Hostmask('Nick!~user@example.org')
+        message  = '\x0308,02\x02\x1fHello, world!\x0F'
+        self.channel_message = Message(message, self.channel_destination, self.hostmask)
+        self.user_message = Message(message, self.user_destination, self.hostmask)
 
     def test_add_messages(self):
-        response = Response(self.mock_ene, self.destination)
+        response = Response(self.mock_ene, self.channel_message, self.hostmask, self.channel_destination)
 
         message1 = 'Hello world! Message 1'
         message2 = 'Hello world! Message 2'
@@ -320,13 +325,17 @@ class ResponseTestCase(unittest.TestCase):
         response.add_message(message2)
         response.add_message(message3)
 
-        self.assertListEqual(response._messages, [('message', message1), ('message', message2), ('message', message3)])
+        self.assertListEqual(response._messages, [
+            ('message', message1, None),
+            ('message', message2, None),
+            ('message', message3, None)
+        ])
         self.assertListEqual(response.messages, [message1, message2, message3])
         self.assertListEqual(response.actions, [])
         self.assertListEqual(response.notices, [])
         
     def test_add_actions(self):
-        response = Response(self.mock_ene, self.destination)
+        response = Response(self.mock_ene, self.channel_message, self.hostmask, self.channel_destination)
 
         message1 = 'performs an action test 1'
         message2 = 'performs an action test 2'
@@ -336,13 +345,17 @@ class ResponseTestCase(unittest.TestCase):
         response.add_action(message2)
         response.add_action(message3)
 
-        self.assertListEqual(response._messages, [('action', message1), ('action', message2), ('action', message3)])
+        self.assertListEqual(response._messages, [
+            ('action', message1, None),
+            ('action', message2, None),
+            ('action', message3, None)
+        ])
         self.assertListEqual(response.messages, [])
         self.assertListEqual(response.actions, [message1, message2, message3])
         self.assertListEqual(response.notices, [])
         
     def test_add_notices(self):
-        response = Response(self.mock_ene, self.destination)
+        response = Response(self.mock_ene, self.channel_message, self.hostmask, self.channel_destination)
 
         message1 = 'Hello world! Notice 1'
         message2 = 'Hello world! Notice 2'
@@ -352,13 +365,17 @@ class ResponseTestCase(unittest.TestCase):
         response.add_notice(message2)
         response.add_notice(message3)
 
-        self.assertListEqual(response._messages, [('notice', message1), ('notice', message2), ('notice', message3)])
+        self.assertListEqual(response._messages, [
+            ('notice', message1, None),
+            ('notice', message2, None),
+            ('notice', message3, None)
+        ])
         self.assertListEqual(response.messages, [])
         self.assertListEqual(response.actions, [])
         self.assertListEqual(response.notices, [message1, message2, message3])
 
     def test_send_messages(self):
-        response = Response(self.mock_ene, self.destination)
+        response = Response(self.mock_ene, self.channel_message, self.hostmask, self.channel_destination)
 
         message1 = 'Hello world! Message 1'
         message2 = 'performs an action test 2'
@@ -378,12 +395,12 @@ class ResponseTestCase(unittest.TestCase):
 
         response.send()
 
-        mock_message.assert_called_once_with(self.destination, message1)
-        mock_action.assert_called_once_with(self.destination, message2)
-        mock_notice.assert_called_once_with(self.destination, message3)
+        mock_message.assert_called_once_with(self.channel_destination, message1)
+        mock_action.assert_called_once_with(self.channel_destination, message2)
+        mock_notice.assert_called_once_with(self.channel_destination, message3)
 
     def test_delivery_timestamps(self):
-        response = Response(self.mock_ene, self.destination)
+        response = Response(self.mock_ene, self.channel_message, self.hostmask, self.channel_destination)
 
         message1 = 'Hello world! Message 1'
         message2 = 'performs an action test 2'
@@ -406,3 +423,84 @@ class ResponseTestCase(unittest.TestCase):
         self.assertIsInstance(response._delivered[0][2], arrow.Arrow)
         self.assertIsInstance(response._delivered[1][2], arrow.Arrow)
         self.assertIsInstance(response._delivered[2][2], arrow.Arrow)
+
+    def test_delivery_default_channel_destination(self):
+        response = Response(self.mock_ene, self.channel_message, self.hostmask, self.channel_destination)
+
+        message1 = 'Hello world! Message 1'
+        message2 = 'performs an action test 2'
+        message3 = 'Hello world! Notice 3'
+
+        response.add_message(message1)
+        response.add_action(message2)
+        response.add_notice(message3)
+
+        mock_message = mock.Mock()
+        mock_action  = mock.Mock()
+        mock_notice  = mock.Mock()
+
+        self.mock_ene.msg      = mock_message
+        self.mock_ene.describe = mock_action
+        self.mock_ene.notice   = mock_notice
+
+        self.assertEqual(response._destination, response.DEST_CHANNEL)
+        self.assertIs(response.destination, self.channel_destination)
+
+        response.send()
+
+        mock_message.assert_called_once_with(self.channel_destination, message1)
+        mock_action.assert_called_once_with(self.channel_destination, message2)
+        mock_notice.assert_called_once_with(self.channel_destination, message3)
+
+    def test_delivery_default_user_destination(self):
+        response = Response(self.mock_ene, self.user_message, self.hostmask, self.user_destination)
+
+        message1 = 'Hello world! Message 1'
+        message2 = 'performs an action test 2'
+        message3 = 'Hello world! Notice 3'
+
+        response.add_message(message1)
+        response.add_action(message2)
+        response.add_notice(message3)
+
+        mock_message = mock.Mock()
+        mock_action  = mock.Mock()
+        mock_notice  = mock.Mock()
+
+        self.mock_ene.msg      = mock_message
+        self.mock_ene.describe = mock_action
+        self.mock_ene.notice   = mock_notice
+
+        self.assertEqual(response._destination, response.DEST_USER)
+        self.assertIs(response.destination, self.hostmask)
+
+        response.send()
+
+        mock_message.assert_called_once_with(self.hostmask, message1)
+        mock_action.assert_called_once_with(self.hostmask, message2)
+        mock_notice.assert_called_once_with(self.hostmask, message3)
+
+    def test_delivery_mixed_destinations(self):
+        response = Response(self.mock_ene, self.channel_message, self.hostmask, self.channel_destination)
+
+        message1 = 'Hello world! Default message 1'
+        message2 = 'performs an action channel test 2'
+        message3 = 'Hello world! User notice 3'
+
+        response.add_message(message1)
+        response.add_action(message2, response.DEST_CHANNEL)
+        response.add_notice(message3, response.DEST_USER)
+
+        mock_message = mock.Mock()
+        mock_action  = mock.Mock()
+        mock_notice  = mock.Mock()
+
+        self.mock_ene.msg      = mock_message
+        self.mock_ene.describe = mock_action
+        self.mock_ene.notice   = mock_notice
+
+        response.send()
+
+        mock_message.assert_called_once_with(self.channel_destination, message1)
+        mock_action.assert_called_once_with(self.channel_destination, message2)
+        mock_notice.assert_called_once_with(self.hostmask, message3)
