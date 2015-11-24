@@ -602,12 +602,12 @@ class Message(object):
         @type   message_type:   str
         @param  message_type:   The message type. Either message, notice or action
         """
-        self._log = logging.getLogger('ene_irc.message')
-        self.raw = message.strip()
-        self.stripped = unstyle(message).strip()
+        self._log        = logging.getLogger('ene_irc.message')
+        self.raw         = message.strip()
+        self.stripped    = unstyle(message).strip()
         self.destination = destination
-        self.source = source
-        self.type = message_type
+        self.source      = source
+        self.type        = message_type
 
         self._command = []
 
@@ -699,3 +699,101 @@ class Message(object):
 
     def __str__(self):
         return self.stripped
+
+
+class Response(object):
+
+    def __init__(self, ene, destination):
+        """
+        @type   ene:            ene_irc.EneIRC
+        @type   destination:    Destination or Hostmask
+        """
+        self._log        = logging.getLogger('ene_irc.response')
+        self.ene         = ene
+        self.destination = destination
+        self._messages   = []
+        self._delivered  = []
+        self.block       = False  # Set to True to stop any further event calls, this should be used with great care.
+        self.sent        = False  # Becomes True after all messages in the queue have been delivered.
+
+    def add_message(self, message):
+        """
+        Add a message to the queue
+        @type   message:    str
+        """
+        self._log.debug('Adding new response message')
+        self._messages.append(('message', message))
+
+    def add_action(self, action):
+        """
+        Add an action to the queue
+        @type   action: str
+        """
+        self._log.debug('Adding new response action')
+        self._messages.append(('action', action))
+
+    def add_notice(self, notice):
+        """
+        Add a notice to the queue
+        @type   notice: str
+        """
+        self._log.debug('Adding new response notice')
+        self._messages.append(('notice', notice))
+
+    def send(self):
+        """
+        Send all queued messages
+        @raise  ValueError: Raised if a message has an invalid type. This should never happen with proper API usage.
+        """
+        for msg_type, msg in self._messages:
+            if msg_type == 'message':
+                self._log.info('Delivering message')
+                self.ene.msg(self.destination, msg)
+                self._delivered.append((msg_type, msg, arrow.now()))
+                continue
+
+            if msg_type == 'action':
+                self._log.info('Performing action')
+                self.ene.describe(self.destination, msg)
+                self._delivered.append((msg_type, msg, arrow.now()))
+                continue
+
+            if msg_type == 'notice':
+                self._log.info('Delivering notice')
+                self.ene.notice(self.destination, msg)
+                self._delivered.append((msg_type, msg, arrow.now()))
+                continue
+
+            self._log.error('Unespected message type: %s', msg_type)
+            self.clear()
+            raise ValueError('Unexpected message type: %s', msg_type)
+
+        self._log.info('All queued messages delivered')
+        self.sent = True
+        self.clear()
+
+    def clear(self):
+        """
+        Clear all message in the queue
+        """
+        self._log.info('Clearing all queued response messages')
+        self._messages = []
+
+    @property
+    def queue(self):
+        return self._messages
+
+    @property
+    def messages(self):
+        return [msg for msg_type, msg in self._messages if msg_type == 'message']
+
+    @property
+    def actions(self):
+        return [msg for msg_type, msg in self._messages if msg_type == 'action']
+
+    @property
+    def notices(self):
+        return [msg for msg_type, msg in self._messages if msg_type == 'notice']
+
+    def __repr__(self):
+        return '<EneIRC Container: Response(ene, Destination(ene, "{d}"))>'.format(d=self.destination.raw)

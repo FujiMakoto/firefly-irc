@@ -7,7 +7,7 @@ import mock
 import socket
 
 from ene_irc import EneIRC
-from ene_irc.containers import Server, Channel, ServerInfo, Destination, Hostmask, Message, Identity
+from ene_irc.containers import Server, Channel, ServerInfo, Destination, Hostmask, Message, Identity, Response
 
 
 class ServerTestCase(unittest.TestCase):
@@ -297,3 +297,112 @@ class MessageTestCase(unittest.TestCase):
         self.assertIsNotNone(r)
 
         self.assertTupleEqual(r, ('testCase', 'Hello! This, this testCase is a test.', r[2]))
+
+
+# noinspection PyTypeChecker
+class ResponseTestCase(unittest.TestCase):
+
+    def setUp(self):
+        mock_server_info = mock.MagicMock(channel_types=['#', '&'])
+        mock_ene = mock.MagicMock(server_info=mock_server_info)
+        self.mock_ene = mock_ene
+
+        self.destination = Destination(mock_ene, '#testchan')
+
+    def test_add_messages(self):
+        response = Response(self.mock_ene, self.destination)
+
+        message1 = 'Hello world! Message 1'
+        message2 = 'Hello world! Message 2'
+        message3 = 'Hello world! Message 3'
+
+        response.add_message(message1)
+        response.add_message(message2)
+        response.add_message(message3)
+
+        self.assertListEqual(response._messages, [('message', message1), ('message', message2), ('message', message3)])
+        self.assertListEqual(response.messages, [message1, message2, message3])
+        self.assertListEqual(response.actions, [])
+        self.assertListEqual(response.notices, [])
+        
+    def test_add_actions(self):
+        response = Response(self.mock_ene, self.destination)
+
+        message1 = 'performs an action test 1'
+        message2 = 'performs an action test 2'
+        message3 = 'performs an action test 3'
+
+        response.add_action(message1)
+        response.add_action(message2)
+        response.add_action(message3)
+
+        self.assertListEqual(response._messages, [('action', message1), ('action', message2), ('action', message3)])
+        self.assertListEqual(response.messages, [])
+        self.assertListEqual(response.actions, [message1, message2, message3])
+        self.assertListEqual(response.notices, [])
+        
+    def test_add_notices(self):
+        response = Response(self.mock_ene, self.destination)
+
+        message1 = 'Hello world! Notice 1'
+        message2 = 'Hello world! Notice 2'
+        message3 = 'Hello world! Notice 3'
+
+        response.add_notice(message1)
+        response.add_notice(message2)
+        response.add_notice(message3)
+
+        self.assertListEqual(response._messages, [('notice', message1), ('notice', message2), ('notice', message3)])
+        self.assertListEqual(response.messages, [])
+        self.assertListEqual(response.actions, [])
+        self.assertListEqual(response.notices, [message1, message2, message3])
+
+    def test_send_messages(self):
+        response = Response(self.mock_ene, self.destination)
+
+        message1 = 'Hello world! Message 1'
+        message2 = 'performs an action test 2'
+        message3 = 'Hello world! Notice 3'
+
+        response.add_message(message1)
+        response.add_action(message2)
+        response.add_notice(message3)
+
+        mock_message = mock.Mock()
+        mock_action  = mock.Mock()
+        mock_notice  = mock.Mock()
+
+        self.mock_ene.msg      = mock_message
+        self.mock_ene.describe = mock_action
+        self.mock_ene.notice   = mock_notice
+
+        response.send()
+
+        mock_message.assert_called_once_with(self.destination, message1)
+        mock_action.assert_called_once_with(self.destination, message2)
+        mock_notice.assert_called_once_with(self.destination, message3)
+
+    def test_delivery_timestamps(self):
+        response = Response(self.mock_ene, self.destination)
+
+        message1 = 'Hello world! Message 1'
+        message2 = 'performs an action test 2'
+        message3 = 'Hello world! Notice 3'
+
+        response.add_message(message1)
+        response.add_action(message2)
+        response.add_notice(message3)
+
+        mock_message = mock.Mock()
+        mock_action  = mock.Mock()
+        mock_notice  = mock.Mock()
+
+        self.mock_ene.msg      = mock_message
+        self.mock_ene.describe = mock_action
+        self.mock_ene.notice   = mock_notice
+
+        response.send()
+
+        self.assertIsInstance(response._delivered[0][2], arrow.Arrow)
+        self.assertIsInstance(response._delivered[1][2], arrow.Arrow)
+        self.assertIsInstance(response._delivered[2][2], arrow.Arrow)
