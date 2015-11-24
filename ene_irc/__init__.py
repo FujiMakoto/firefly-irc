@@ -14,7 +14,7 @@ from twisted.words.protocols.irc import IRCClient
 
 from ene_irc import plugins, irc
 from ene_irc.args import ArgumentParser
-from ene_irc.containers import ServerInfo, Destination, Hostmask, Message
+from ene_irc.containers import ServerInfo, Destination, Hostmask, Message, Response
 from errors import LanguageImportError, PluginCommandExistsError, PluginError, NoSuchPluginError, NoSuchCommandError, \
     ArgumentParserError
 
@@ -238,18 +238,13 @@ class EneIRC(IRCClient):
         cls, func, argparse = self.registry.get_command(plugin, name)
 
         try:
-            response = func(argparse.parse_args(cmd_args), message)
-            self._log.info('Command response: %s', str(response))
-
-            if isinstance(response, tuple):
-                response = '\n'.join(response)
-            elif isinstance(response, list):
-                response = '\n'.join(response)
-
-            if message.destination.is_user:
-                self.msg(message.source, response)
-            else:
-                self.msg(message.destination, response)
+            response = func(argparse.parse_args(cmd_args), Response(
+                self, message, message.source, message.destination if message.destination.is_channel else None
+            ))
+            if response:
+                if not isinstance(response, Response):
+                    self._log.error('Bad command response type: %s (%s)', str(type(response)), str(response))
+                response.send()
         except ArgumentParserError as e:
             self._log.info('Argument parser error: %s', e.message)
 
