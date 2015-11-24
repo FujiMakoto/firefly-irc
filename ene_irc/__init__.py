@@ -292,10 +292,11 @@ class EneIRC(IRCClient):
         Notices are like normal message, but should never get automated
         replies.
 
-        @type user: C{str}
-        @param user: The user to send a notice to.
-        @type message: C{str}
-        @param message: The contents of the notice to send.
+        @type   user:   Destination, Hostmask or str
+        @param  user:   The user or channel to send a notice to.
+        
+        @type   message: str
+        @param  message: The contents of the notice to send.
         """
         if isinstance(user, Destination):
             self._log.debug('Implicitly converting Destination to raw format for notice delivery: %s --> %s',
@@ -308,6 +309,28 @@ class EneIRC(IRCClient):
             user = user.nick
 
         IRCClient.notice(self, user, message)
+        
+    def describe(self, channel, action):
+        """
+        Strike a pose.
+
+        @type   channel:    Destination, Hostmask or str
+        @param  channel:    The user or channel to perform an action in.
+
+        @type   action: str
+        @param  action: The action to preform.
+        """
+        if isinstance(channel, Destination):
+            self._log.debug('Implicitly converting Destination to raw format for action performance: %s --> %s',
+                            repr(channel), channel.raw)
+            channel = channel.raw
+
+        if isinstance(channel, Hostmask):
+            self._log.debug('Implicitly converting Hostmask to nick format for action performance: %s --> %s',
+                            repr(channel), channel.nick)
+            channel = channel.nick
+        
+        IRCClient.describe(self, channel, action)
 
     ################################
     # High-level IRC Events        #
