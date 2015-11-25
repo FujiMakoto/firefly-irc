@@ -216,7 +216,19 @@ class EneIRC(IRCClient):
                 continue
 
             self._log.info('Firing event: %s (%s); Params: %s', str(cls), str(func), str(params))
-            func(cls, **kwargs)
+
+            # response = func(cls, **kwargs)
+            message = kwargs.get('message')
+            response = func(cls, Response(
+                self,
+                message,
+                message.source if message else None,
+                message.destination if message and message.destination.is_channel else None
+            ), **kwargs)
+            if response:
+                if not isinstance(response, Response):
+                    self._log.error('Bad command response type: %s (%s)', str(type(response)), str(response))
+                response.send()
 
     def _fire_command(self, plugin, name, cmd_args, message):
         """
@@ -238,13 +250,12 @@ class EneIRC(IRCClient):
         cls, func, argparse = self.registry.get_command(plugin, name)
 
         try:
-            response = func(argparse.parse_args(cmd_args), Response(
+            response = Response(
                 self, message, message.source, message.destination if message.destination.is_channel else None
-            ))
-            if response:
-                if not isinstance(response, Response):
-                    self._log.error('Bad command response type: %s (%s)', str(type(response)), str(response))
-                response.send()
+            )
+
+            func(argparse.parse_args(cmd_args), response)
+            response.send()
         except ArgumentParserError as e:
             self._log.info('Argument parser error: %s', e.message)
 
@@ -267,6 +278,24 @@ class EneIRC(IRCClient):
                 self.notice(message.source, help_msg)
 
     def msg(self, user, message, length=None):
+        """
+        Send a message to a user or channel.
+
+        The message will be split into multiple commands to the server if:
+         - The message contains any newline characters
+         - Any span between newline characters is longer than the given
+           line-length.
+
+        @type   user:       Destination, Hostmask or str
+        @param  user:       The user or channel to send a notice to.
+
+        @type   message:    str
+        @param  message:    The contents of the notice to send.
+
+        @type   length:     int
+        @param  length:     Maximum number of octets to send in a single command, including the IRC protocol framing.
+                            If None is given then IRCClient._safeMaximumLineLength is used to determine a value.
+        """
         if isinstance(user, Destination):
             self._log.debug('Implicitly converting Destination to raw format for message delivery: %s --> %s',
                             repr(user), user.raw)

@@ -775,6 +775,8 @@ class Response(object):
         """
         Send all queued messages
         """
+        self._log.debug('Delivering all queued messages')
+
         for msg_type, msg, dest in self._messages:
             try:
                 if msg_type == 'message':

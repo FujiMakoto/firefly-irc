@@ -255,15 +255,15 @@ class PluginCommandTestCase(EneIRCTestCase):
             args.add_argument('times', type=int, help='How many times to pong')
             args.add_argument('--message', help='The response message to use', default='pong')
 
-            def _ping(args, message):
+            def _ping(args, response):
                 """
                 @type   args:       argparse.Namespace
-                @type   message:    ene_irc.containers.Message
+                @type   response:   ene_irc.containers.Response
                 """
                 pongs = [args.message]
                 pongs = pongs * args.times
 
-                return ' '.join(pongs)
+                response.add_message(' '.join(pongs))
 
             return _ping
 
