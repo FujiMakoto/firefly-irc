@@ -1,6 +1,9 @@
 import inspect
 import unittest
 
+import os
+from ConfigParser import ConfigParser
+
 from mock import mock
 
 import firefly
@@ -50,18 +53,38 @@ class FireflyIRCTestCase(unittest.TestCase):
         'action': None
     }
 
-    def setUp(self, **kwargs):
+    @mock.patch.object(FireflyIRC, 'load_configuration')
+    def setUp(self, mock_load_configuration, **kwargs):
         """
         Set up the Unit Test
         """
         """
         Set up the Unit Test
         """
-        servers_config = FireflyIRC.load_configuration('servers')
+        self.config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'config')
+
+        self.server_config = ConfigParser()
+        self.server_config.read(os.path.join(self.config_path, 'server.cfg'))
+
+        self.channel_config = ConfigParser()
+        self.channel_config.read(os.path.join(self.config_path, 'servers', 'irc.example.org.cfg'))
+
+        self.identity_config = ConfigParser()
+        self.identity_config.read(os.path.join(self.config_path, 'identities', 'test.cfg'))
+
+        def load_configuration(name, plugin=None, basedir=None, default=None):
+            if basedir == 'servers':
+                return self.channel_config
+
+            if basedir == 'identities':
+                return self.identity_config
+
+        mock_load_configuration.side_effect = load_configuration
+
         servers = []
-        hostnames = servers_config.sections()
+        hostnames = self.server_config.sections()
         for hostname in hostnames:
-            servers.append((hostname, servers_config))
+            servers.append((hostname, self.server_config))
 
         self.hostname, self.config = servers.pop()
 
@@ -70,39 +93,39 @@ class MessageDeliveryTestCase(FireflyIRCTestCase):
 
     @mock.patch.object(firefly.IRCClient, 'msg')
     def test_channel_message(self, mock_msg):
-        ene = FireflyIRC(Server(self.hostname, self.config))
+        firefly_irc = FireflyIRC(Server(self.hostname, self.config))
 
-        dest = containers.Destination(ene, '#testchan')
-        ene.msg(dest, 'Hello, world!')
+        dest = containers.Destination(firefly_irc, '#testchan')
+        firefly_irc.msg(dest, 'Hello, world!')
 
-        mock_msg.assert_called_once_with(ene, '#testchan', 'Hello, world!', None)
+        mock_msg.assert_called_once_with(firefly_irc, '#testchan', 'Hello, world!', None)
 
     @mock.patch.object(firefly.IRCClient, 'msg')
     def test_user_message(self, mock_msg):
-        ene = FireflyIRC(Server(self.hostname, self.config))
+        firefly_irc = FireflyIRC(Server(self.hostname, self.config))
 
         host = containers.Hostmask('test_nick!~user@example.org')
-        ene.msg(host, 'Hello, world!')
+        firefly_irc.msg(host, 'Hello, world!')
 
-        mock_msg.assert_called_once_with(ene, 'test_nick', 'Hello, world!', None)
+        mock_msg.assert_called_once_with(firefly_irc, 'test_nick', 'Hello, world!', None)
 
     @mock.patch.object(firefly.IRCClient, 'notice')
     def test_channel_notice(self, mock_notice):
-        ene = FireflyIRC(Server(self.hostname, self.config))
+        firefly_irc = FireflyIRC(Server(self.hostname, self.config))
 
-        dest = containers.Destination(ene, '#testchan')
-        ene.notice(dest, 'Hello, world!')
+        dest = containers.Destination(firefly_irc, '#testchan')
+        firefly_irc.notice(dest, 'Hello, world!')
 
-        mock_notice.assert_called_once_with(ene, '#testchan', 'Hello, world!')
+        mock_notice.assert_called_once_with(firefly_irc, '#testchan', 'Hello, world!')
 
     @mock.patch.object(firefly.IRCClient, 'notice')
     def test_user_notice(self, mock_notice):
-        ene = FireflyIRC(Server(self.hostname, self.config))
+        firefly_irc = FireflyIRC(Server(self.hostname, self.config))
 
         host = containers.Hostmask('test_nick!~user@example.org')
-        ene.notice(host, 'Hello, world!')
+        firefly_irc.notice(host, 'Hello, world!')
 
-        mock_notice.assert_called_once_with(ene, 'test_nick', 'Hello, world!')
+        mock_notice.assert_called_once_with(firefly_irc, 'test_nick', 'Hello, world!')
 
 
 # noinspection PyPep8Naming
@@ -111,25 +134,25 @@ class PluginEventTestCase(FireflyIRCTestCase):
     @mock.patch('firefly.IRCClient')
     @mock.patch.object(FireflyIRC, 'join')
     def test_event_bindings(self, mock_join, mock_class):
-        ene = FireflyIRC(Server(self.hostname, self.config))
-        ene.language.get_reply = mock.Mock()
-        ene.language.get_reply.return_value = None
+        firefly_irc = FireflyIRC(Server(self.hostname, self.config))
+        firefly_irc.language.get_reply = mock.Mock()
+        firefly_irc.language.get_reply.return_value = None
         events = [(en, getattr(irc, en)) for en in dir(irc) if en.startswith('on_')]
-        ene_methods = dir(ene)
+        firefly_methods = dir(firefly_irc)
 
         # Make sure all of our event methods exist
         for event_name, meth_name in events:
-            self.assertIn(meth_name, ene_methods, 'Missing method {m} for event {e}'.format(m=meth_name, e=event_name))
+            self.assertIn(meth_name, firefly_methods, 'Missing method {m} for event {e}'.format(m=meth_name, e=event_name))
 
         # Make sure the correct events are fired
         for event_name, meth_name in events:
             # First we grab our event method and its argument names so we can mock patch it
-            method = getattr(ene, meth_name)
+            method = getattr(firefly_irc, meth_name)
             margs = inspect.getargspec(method).args
             kwargs = {arg: (self.ARGS[arg] if arg in self.ARGS else None) for arg in margs if arg != 'self'}
 
-            with mock.patch('firefly.FireflyIRC.{m}'.format(m=meth_name), ene._fire_event) as mock_method:
-                with mock.patch.object(ene, '_fire_event') as mock_fire_event:
+            with mock.patch('firefly.FireflyIRC.{m}'.format(m=meth_name), firefly_irc._fire_event) as mock_method:
+                with mock.patch.object(firefly_irc, '_fire_event') as mock_fire_event:
                     # Fire the event dispatcher and make sure it fires off the correct plugin event in return
                     method(**kwargs)
                     called_events = [c[1][0] for c in mock_fire_event.mock_calls]
@@ -141,10 +164,10 @@ class PluginEventTestCase(FireflyIRCTestCase):
     @mock.patch.object(FireflyIRC, 'privateMessage')
     def test_command_call(self, mock_privateMessage, mock_channelMessage, mock__fire_command,
                           mock__fire_event):
-        ene = FireflyIRC(Server(self.hostname, self.config))
-        ene.language.get_reply = mock.Mock()
-        ene.language.get_reply.return_value = None
-        ene.privmsg('test_nick!~user@example.org', '#testchan', '>>> plugintest ping 3')
+        firefly_irc = FireflyIRC(Server(self.hostname, self.config))
+        firefly_irc.language.get_reply = mock.Mock()
+        firefly_irc.language.get_reply.return_value = None
+        firefly_irc.privmsg('test_nick!~user@example.org', '#testchan', '>>> plugintest ping 3')
 
         _fire_command_args = mock__fire_command.call_args_list
         self.assertTrue(mock__fire_command.called)
@@ -166,10 +189,10 @@ class PluginEventTestCase(FireflyIRCTestCase):
     @mock.patch.object(FireflyIRC, 'privateMessage')
     def test_channel_message_routed(self, mock_privateMessage, mock_channelMessage, mock__fire_command,
                                     mock__fire_event):
-        ene = FireflyIRC(Server(self.hostname, self.config))
-        ene.language.get_reply = mock.Mock()
-        ene.language.get_reply.return_value = None
-        ene.privmsg('test_nick!~user@example.org', '#testchan', 'Hello, world!')
+        firefly_irc = FireflyIRC(Server(self.hostname, self.config))
+        firefly_irc.language.get_reply = mock.Mock()
+        firefly_irc.language.get_reply.return_value = None
+        firefly_irc.privmsg('test_nick!~user@example.org', '#testchan', 'Hello, world!')
 
         self.assertEqual(mock_channelMessage.call_count, 1)
         mock_privateMessage.assert_not_called()
@@ -181,10 +204,10 @@ class PluginEventTestCase(FireflyIRCTestCase):
     @mock.patch.object(FireflyIRC, 'privateMessage')
     def test_private_message_routed(self, mock_privateMessage, mock_channelMessage, mock__fire_command,
                                     mock__fire_event):
-        ene = FireflyIRC(Server(self.hostname, self.config))
-        ene.language.get_reply = mock.Mock()
-        ene.language.get_reply.return_value = None
-        ene.privmsg('test_nick!~user@example.org', 'test_nick', 'Hello, world!')
+        firefly_irc = FireflyIRC(Server(self.hostname, self.config))
+        firefly_irc.language.get_reply = mock.Mock()
+        firefly_irc.language.get_reply.return_value = None
+        firefly_irc.privmsg('test_nick!~user@example.org', 'test_nick', 'Hello, world!')
 
         self.assertEqual(mock_privateMessage.call_count, 1)
         mock_channelMessage.assert_not_called()
@@ -196,8 +219,8 @@ class PluginEventTestCase(FireflyIRCTestCase):
     @mock.patch.object(FireflyIRC, 'privateNotice')
     def test_channel_notice_routed(self, mock_privateNotice, mock_channelNotice, mock__fire_command,
                                     mock__fire_event):
-        ene = FireflyIRC(Server(self.hostname, self.config))
-        ene.noticed('test_nick!~user@example.org', '#testchan', 'Hello, world!')
+        firefly_irc = FireflyIRC(Server(self.hostname, self.config))
+        firefly_irc.noticed('test_nick!~user@example.org', '#testchan', 'Hello, world!')
 
         self.assertEqual(mock_channelNotice.call_count, 1)
         mock_privateNotice.assert_not_called()
@@ -209,8 +232,8 @@ class PluginEventTestCase(FireflyIRCTestCase):
     @mock.patch.object(FireflyIRC, 'privateNotice')
     def test_private_notice_routed(self, mock_privateNotice, mock_channelNotice, mock__fire_command,
                                     mock__fire_event):
-        ene = FireflyIRC(Server(self.hostname, self.config))
-        ene.noticed('test_nick!~user@example.org', 'test_nick', 'Hello, world!')
+        firefly_irc = FireflyIRC(Server(self.hostname, self.config))
+        firefly_irc.noticed('test_nick!~user@example.org', 'test_nick', 'Hello, world!')
 
         self.assertEqual(mock_privateNotice.call_count, 1)
         mock_channelNotice.assert_not_called()
@@ -222,8 +245,8 @@ class PluginEventTestCase(FireflyIRCTestCase):
     @mock.patch.object(FireflyIRC, 'privateAction')
     def test_private_action_routed(self, mock_privateAction, mock_channelAction, mock__fire_command,
                                     mock__fire_event):
-        ene = FireflyIRC(Server(self.hostname, self.config))
-        ene.action('test_nick!~user@example.org', '#testchan', 'waves')
+        firefly_irc = FireflyIRC(Server(self.hostname, self.config))
+        firefly_irc.action('test_nick!~user@example.org', '#testchan', 'waves')
 
         self.assertEqual(mock_channelAction.call_count, 1)
         mock_privateAction.assert_not_called()
@@ -235,8 +258,8 @@ class PluginEventTestCase(FireflyIRCTestCase):
     @mock.patch.object(FireflyIRC, 'privateAction')
     def test_private_action_routed(self, mock_privateAction, mock_channelAction, mock__fire_command,
                                     mock__fire_event):
-        ene = FireflyIRC(Server(self.hostname, self.config))
-        ene.action('test_nick!~user@example.org', 'test_nick', 'waves')
+        firefly_irc = FireflyIRC(Server(self.hostname, self.config))
+        firefly_irc.action('test_nick!~user@example.org', 'test_nick', 'waves')
 
         self.assertEqual(mock_privateAction.call_count, 1)
         mock_channelAction.assert_not_called()
@@ -250,7 +273,7 @@ class PluginCommandTestCase(FireflyIRCTestCase):
         @irc.command()
         def ping(self, args):
             """
-            @type   args:   ene_irc.args.ArgumentParser
+            @type   args:   firefly.args.ArgumentParser
             """
             args.add_argument('times', type=int, help='How many times to pong')
             args.add_argument('--message', help='The response message to use', default='pong')
@@ -258,7 +281,7 @@ class PluginCommandTestCase(FireflyIRCTestCase):
             def _ping(args, response):
                 """
                 @type   args:       argparse.Namespace
-                @type   response:   ene_irc.containers.Response
+                @type   response:   firefly.containers.Response
                 """
                 pongs = [args.message]
                 pongs = pongs * args.times
@@ -268,90 +291,90 @@ class PluginCommandTestCase(FireflyIRCTestCase):
             return _ping
 
     def test_bind_command(self):
-        ene = FireflyIRC(Server(self.hostname, self.config))
+        firefly_irc = FireflyIRC(Server(self.hostname, self.config))
         params = {'name': 'ping', 'permission': 'guest'}
 
-        ene.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
+        firefly_irc.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
 
-        self.assertIn('plugintest', ene.registry._commands)
-        self.assertIn('ping', ene.registry._commands['plugintest'])
+        self.assertIn('plugintest', firefly_irc.registry._commands)
+        self.assertIn('ping', firefly_irc.registry._commands['plugintest'])
 
     def test_get_command(self):
-        ene = FireflyIRC(Server(self.hostname, self.config))
+        firefly_irc = FireflyIRC(Server(self.hostname, self.config))
         params = {'name': 'ping', 'permission': 'guest'}
 
-        ene.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
+        firefly_irc.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
 
-        self.assertIn('plugintest', ene.registry._commands)
-        self.assertIn('ping', ene.registry._commands['plugintest'])
+        self.assertIn('plugintest', firefly_irc.registry._commands)
+        self.assertIn('ping', firefly_irc.registry._commands['plugintest'])
 
-        command = ene.registry.get_command('plugintest', 'ping')
+        command = firefly_irc.registry.get_command('plugintest', 'ping')
         self.assertIsInstance(command, tuple)
 
     def test_get_command_bad_plugin(self):
-        ene = FireflyIRC(Server(self.hostname, self.config))
+        firefly_irc = FireflyIRC(Server(self.hostname, self.config))
         params = {'name': 'ping', 'permission': 'guest'}
 
-        ene.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
+        firefly_irc.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
 
-        self.assertIn('plugintest', ene.registry._commands)
-        self.assertIn('ping', ene.registry._commands['plugintest'])
+        self.assertIn('plugintest', firefly_irc.registry._commands)
+        self.assertIn('ping', firefly_irc.registry._commands['plugintest'])
 
-        command = ene.registry.get_command('PLUGINtest', 'ping')
+        command = firefly_irc.registry.get_command('PLUGINtest', 'ping')
         self.assertIsInstance(command, tuple)
-        self.assertRaises(errors.NoSuchPluginError, ene.registry.get_command, 'badplugin', 'ping')
+        self.assertRaises(errors.NoSuchPluginError, firefly_irc.registry.get_command, 'badplugin', 'ping')
 
     def test_get_command_bad_command(self):
-        ene = FireflyIRC(Server(self.hostname, self.config))
+        firefly_irc = FireflyIRC(Server(self.hostname, self.config))
         params = {'name': 'ping', 'permission': 'guest'}
 
-        ene.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
+        firefly_irc.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
 
-        self.assertIn('plugintest', ene.registry._commands)
-        self.assertIn('ping', ene.registry._commands['plugintest'])
+        self.assertIn('plugintest', firefly_irc.registry._commands)
+        self.assertIn('ping', firefly_irc.registry._commands['plugintest'])
 
-        command = ene.registry.get_command('plugintest', 'pInG ')
+        command = firefly_irc.registry.get_command('plugintest', 'pInG ')
         self.assertIsInstance(command, tuple)
-        self.assertRaises(errors.NoSuchCommandError, ene.registry.get_command, 'plugintest', 'badcommand')
+        self.assertRaises(errors.NoSuchCommandError, firefly_irc.registry.get_command, 'plugintest', 'badcommand')
 
     @mock.patch.object(FireflyIRC, 'msg')
     def test_ping_once(self, mock_msg):
-        ene = FireflyIRC(Server(self.hostname, self.config))
+        firefly_irc = FireflyIRC(Server(self.hostname, self.config))
         params = {'name': 'ping', 'permission': 'guest'}
 
-        ene.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
+        firefly_irc.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
 
-        dest = containers.Destination(ene, '#test')
+        dest = containers.Destination(firefly_irc, '#test')
         message = containers.Message('>>> plugintest ping 1', dest, containers.Hostmask('Nick!~user@example.org'))
-        ene._fire_command('plugintest', 'ping', ['1'], message)
+        firefly_irc._fire_command('plugintest', 'ping', ['1'], message)
 
         mock_msg.assert_called_once_with(dest, 'pong')
 
     @mock.patch.object(FireflyIRC, 'msg')
     def test_ping_thrice(self, mock_msg):
-        ene_irc = FireflyIRC(Server(self.hostname, self.config))
+        firefly_irc = FireflyIRC(Server(self.hostname, self.config))
         params = {'name': 'ping', 'permission': 'guest'}
 
-        ene_irc.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
+        firefly_irc.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
 
-        dest = containers.Destination(ene_irc, 'test_nick')
+        dest = containers.Destination(firefly_irc, 'test_nick')
         host = containers.Hostmask('test_nick!~user@example.org')
         message = containers.Message('>>> plugintest ping 3', dest, host)
-        ene_irc._fire_command('plugintest', 'ping', ['3'], message)
+        firefly_irc._fire_command('plugintest', 'ping', ['3'], message)
 
         mock_msg.assert_called_once_with(host, 'pong pong pong')
 
     @mock.patch.object(FireflyIRC, 'msg')
     def test_ping_with_option(self, mock_msg):
-        ene = FireflyIRC(Server(self.hostname, self.config))
+        firefly_irc = FireflyIRC(Server(self.hostname, self.config))
         params = {'name': 'ping', 'permission': 'guest'}
 
-        ene.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
+        firefly_irc.registry.bind_command('ping', self.PluginTest, self.PluginTest.ping, params)
 
-        dest = containers.Destination(ene, 'test_nick')
+        dest = containers.Destination(firefly_irc, 'test_nick')
         host = containers.Hostmask('test_nick!~user@example.org')
         message = containers.Message('>>> plugintest ping 3 --message=wong', dest, host)
-        ene._fire_command('plugintest', 'ping', ['3', '--message=wong'], message)
+        firefly_irc._fire_command('plugintest', 'ping', ['3', '--message=wong'], message)
 
         mock_msg.assert_called_once_with(host, 'wong wong wong')
 
@@ -361,14 +384,14 @@ class LanguageTests(FireflyIRCTestCase):
     Basic language instantiation tests
     """
     def test_default_instantiation(self):
-        ene = FireflyIRC(Server(self.hostname, self.config))
-        self.assertIsInstance(ene.language, LanguageInterface)
+        firefly_irc = FireflyIRC(Server(self.hostname, self.config))
+        self.assertIsInstance(firefly_irc.language, LanguageInterface)
 
     def test_aml_instantiation(self):
-        ene = FireflyIRC(Server(self.hostname, self.config))
-        ene._load_language_interface('aml')
-        self.assertIsInstance(ene.language, AgentMLLanguage)
+        firefly_irc = FireflyIRC(Server(self.hostname, self.config))
+        firefly_irc._load_language_interface('aml')
+        self.assertIsInstance(firefly_irc.language, AgentMLLanguage)
 
     def test_bad_instantiation(self):
-        ene = FireflyIRC(Server(self.hostname, self.config))
-        self.assertRaises(ImportError, ene._load_language_interface, '_invalid_language_interface')
+        firefly_irc = FireflyIRC(Server(self.hostname, self.config))
+        self.assertRaises(ImportError, firefly_irc._load_language_interface, '_invalid_language_interface')
