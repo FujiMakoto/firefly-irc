@@ -6,13 +6,13 @@ import arrow
 import mock
 import socket
 
-from ene_irc import EneIRC
-from ene_irc.containers import Server, Channel, ServerInfo, Destination, Hostmask, Message, Identity, Response
+from firefly import FireflyIRC
+from firefly.containers import Server, Channel, ServerInfo, Destination, Hostmask, Message, Identity, Response
 
 
 class ServerTestCase(unittest.TestCase):
 
-    @mock.patch.object(EneIRC, 'load_configuration')
+    @mock.patch.object(FireflyIRC, 'load_configuration')
     def setUp(self, mock_load_configuration):
         self.config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'config')
 
@@ -84,7 +84,7 @@ class ServerTestCase(unittest.TestCase):
 
 class IdentityTestCase(unittest.TestCase):
 
-    @mock.patch.object(EneIRC, 'load_configuration')
+    @mock.patch.object(FireflyIRC, 'load_configuration')
     def setUp(self, mock_load_configuration):
         self.config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'config')
 

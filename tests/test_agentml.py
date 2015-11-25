@@ -1,5 +1,5 @@
 from .config import AgentMLTestCase
-from ene_irc.languages.aml import AgentML
+from firefly.languages.aml import AgentML
 
 
 class AgentMLTests(AgentMLTestCase):

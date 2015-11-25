@@ -1,10 +1,10 @@
 import ConfigParser
 import unittest
-import ene_irc
+import firefly
 
-from ene_irc import EneIRC
-from ene_irc.containers import Server
-from ene_irc.languages.aml import AgentMLLanguage
+from firefly import FireflyIRC
+from firefly.containers import Server
+from firefly.languages.aml import AgentMLLanguage
 
 
 class EneIRCTestCase(unittest.TestCase):
@@ -16,14 +16,14 @@ class EneIRCTestCase(unittest.TestCase):
         Set up the Unit Test
         """
         # Load a test server
-        servers_config = EneIRC.load_configuration('servers')
+        servers_config = FireflyIRC.load_configuration('servers')
         servers = []
         hostnames = servers_config.sections()
         for hostname in hostnames:
             servers.append((hostname, servers_config))
 
         hostname, config = servers.pop()
-        self.ene_irc = ene_irc.EneIRC(Server(hostname, config))
+        self.ene_irc = firefly.FireflyIRC(Server(hostname, config))
 
     def tearDown(self):
         pass
