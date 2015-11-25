@@ -55,7 +55,7 @@ class FireflyIRC(IRCClient):
         self.server_info = ServerInfo()
         self.server = server
         self._setup()
-        self._load_core_language_files()
+        self.load_language_files()
 
         # Finally, now that everything is set up, load our plugins
         self.plugins = pkg_resources.get_entry_map('firefly_irc', 'firefly.plugins')
@@ -159,16 +159,30 @@ class FireflyIRC(IRCClient):
             raise LanguageImportError('Language "{lang}" does not have a defined __LANGUAGE_CLASS__'
                                       .format(lang=language))
 
-    def _load_core_language_files(self):
+    def load_language_files(self, plugin=None, basedir=None, container=None):
         """
-        Load any core language files
-        """
-        lang_dir = os.path.join(self.CONFIG_DIR, 'lang', self.server.identity.container)
-        if not os.path.exists(lang_dir):
-            self._log.debug('Creating new language path: %s', lang_dir)
-            os.makedirs(lang_dir, 0o755)
+        Load language files.
 
-        self.language.load_directory(lang_dir)
+        @type   plugin:     PluginAbstract or None
+        @param  plugin:     Plugin to load language files from, or None to load user language files.
+
+        @type   basedir:    str or None
+        @param  basedir:    Language basedir. Defaults to lang
+
+        @type   container:  str or None
+        @param  container:  Name of the identity container. Defaults to the system configuration.
+        """
+        basedir = basedir or 'lang'
+        container = container or self.server.identity.container
+        lang_path = plugin.plugin_path if plugin else EneIRC.CONFIG_DIR
+        lang_path = os.path.join(lang_path, basedir, container)
+
+        # Make sure the configuration file actually exists
+        if not os.path.exists(lang_path):
+            self._log.warn('Language directory %s does not exist', lang_path)
+            return
+
+        self.language.load_directory(lang_path)
 
     def _setup(self):
         """
@@ -931,6 +945,9 @@ class PluginAbstract(object):
     FIREFLY_IRC_PLUGIN_CONFIG_BASEDIR = None
     FIREFLY_IRC_PLUGIN_CONFIG_DEFAULT = None  # Only used when PLUGIN_CONFIG contains a single config file
 
+    # This is the base directory for all plugin language files
+    ENE_IRC_PLUGIN_LANG_BASEDIR = 'lang'
+
     # When True, the plugin class will be instantiated on demand instead of immediately on startup.
     FIREFLY_IRC_LAZY_LOAD = False  # TODO: Currently has no effect
 
@@ -949,6 +966,7 @@ class PluginAbstract(object):
 
         self.config = NotImplemented
         self._load_configuration()
+        self._load_language()
 
     # noinspection PyUnresolvedReferences
     def _load_configuration(self):
@@ -1007,6 +1025,18 @@ class PluginAbstract(object):
                 raise
 
             self._log.debug('Loaded plugin configuration file %s.cfg', name)
+
+    def _load_language(self):
+        """
+        Load plugin language files.
+
+        @raise  ValueError: Re-raised if strict mode is enabled and a configuration file can not be loaded
+        """
+        if not self.ENE_IRC_PLUGIN_LANG_BASEDIR:
+            self._log.info('Plugin language has been explicitly disabled')
+
+        basedir = self.ENE_IRC_PLUGIN_LANG_BASEDIR
+        self.ene.load_language_files(self, basedir)
 
 
 # noinspection PyMethodMayBeStatic
