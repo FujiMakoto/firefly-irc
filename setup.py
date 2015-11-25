@@ -13,8 +13,11 @@ setup(
         'Development Status :: 1 - Planning',
         'License :: OSI Approved :: MIT License',
     ],
-    packages=find_packages(),
+    packages=find_packages(exclude=['tests']),
     entry_points={
+        'console_scripts': [
+            'firefly = firefly.cli:cli'
+        ],
         'firefly_irc.plugins': [
             'datetime = firefly.plugins.datetime:DateTime',
             'logging = firefly.plugins.logging:Logger',
