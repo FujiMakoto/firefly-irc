@@ -1,0 +1,9 @@
+<!DOCTYPE agentml PUBLIC "https://github.com/FujiMakoto/AgentML" "https://raw.githubusercontent.com/FujiMakoto/AgentML/master/agentml/schemas/agentml.rng">
+
+<agentml version="0.2" xmlns="">
+    <!-- Hello! -->
+    <trigger>
+        <pattern>this is a test</pattern>
+        <template>The test was a success!</template>
+    </trigger>
+</agentml>

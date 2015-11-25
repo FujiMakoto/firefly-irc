@@ -12,9 +12,9 @@ from ircmessage import style
 from twisted.internet import reactor, protocol
 from twisted.words.protocols.irc import IRCClient
 
-from ene_irc import plugins, irc
-from ene_irc.args import ArgumentParser
-from ene_irc.containers import ServerInfo, Destination, Hostmask, Message, Response
+from firefly import plugins, irc
+from firefly.args import ArgumentParser
+from firefly.containers import ServerInfo, Destination, Hostmask, Message, Response
 from errors import LanguageImportError, PluginCommandExistsError, PluginError, NoSuchPluginError, NoSuchCommandError, \
     ArgumentParserError
 
@@ -26,17 +26,17 @@ __maintainer__ = "Makoto Fujimoto"
 
 
 # noinspection PyAbstractClass,PyPep8Naming
-class EneIRC(IRCClient):
+class FireflyIRC(IRCClient):
     """
-    Ene IRC client.
+    Firefly IRC client.
     """
     # Default nick
-    nickname = "Ene"
+    nickname = "Firefly"
 
     # Path constants
-    CONFIG_DIR = os.path.join(appdirs.user_config_dir('ene'), 'irc')
-    DATA_DIR   = os.path.join(appdirs.user_data_dir('ene'), 'irc')
-    LOG_DIR    = os.path.join(appdirs.user_log_dir('ene'), 'irc')
+    CONFIG_DIR = os.path.join(appdirs.user_config_dir('firefly'), 'irc')
+    DATA_DIR   = os.path.join(appdirs.user_data_dir('firefly'), 'irc')
+    LOG_DIR    = os.path.join(appdirs.user_log_dir('firefly'), 'irc')
 
     def __init__(self, server, language='aml'):
         """
@@ -44,10 +44,10 @@ class EneIRC(IRCClient):
         @param  language:   The language engine to use for this instance.
         """
         # Set up logging
-        self._log = logging.getLogger('ene_irc')
+        self._log = logging.getLogger('firefly')
 
         self.language = None
-        """@type : ene_irc.languages.interface.LanguageInterface"""
+        """@type : firefly.languages.interface.LanguageInterface"""
         self._load_language_interface(language)
 
         # Set up our registry and server containers, then run setup
@@ -58,8 +58,8 @@ class EneIRC(IRCClient):
         self._load_core_language_files()
 
         # Finally, now that everything is set up, load our plugins
-        self.plugins = pkg_resources.get_entry_map('ene_irc', 'ene_irc.plugins')
-        scanner = venusian.Scanner(ene=self)
+        self.plugins = pkg_resources.get_entry_map('firefly_irc', 'firefly.plugins')
+        scanner = venusian.Scanner(firefly=self)
         scanner.scan(plugins)
 
     @staticmethod
@@ -83,7 +83,7 @@ class EneIRC(IRCClient):
 
         @rtype: ConfigParser
         """
-        log = logging.getLogger('ene_irc')
+        log = logging.getLogger('firefly')
         paths = []
 
         ################################
@@ -108,7 +108,7 @@ class EneIRC(IRCClient):
         # User Configuration           #
         ################################
 
-        user_path = os.path.join(EneIRC.CONFIG_DIR, 'config')
+        user_path = os.path.join(FireflyIRC.CONFIG_DIR, 'config')
         if plugin:
             user_path = os.path.join(user_path, 'plugins', plugin.name)
         if basedir:
@@ -148,7 +148,7 @@ class EneIRC(IRCClient):
         """
         self._log.info('Loading language interface: {lang}'.format(lang=language))
         try:
-            module = importlib.import_module('ene_irc.languages.{module}'.format(module=language))
+            module = importlib.import_module('firefly.languages.{module}'.format(module=language))
             self.language = module.__LANGUAGE_CLASS__()
         except ImportError as e:
             self._log.error('ImportError raised when loading language')
@@ -191,7 +191,7 @@ class EneIRC(IRCClient):
         Fire an IRC event.
 
         @type   event_name: C{str}
-        @param  event_name: Name of the event to fire, see ene_irc.irc for a list of event constants
+        @param  event_name: Name of the event to fire, see firefly.irc for a list of event constants
 
         @type   has_reply:  bool
         @param  has_reply:  Indicates that this event triggered a language response before firing
@@ -308,7 +308,7 @@ class EneIRC(IRCClient):
 
         self._log.debug('Delivering message to %s : %s', user, (message[:35] + '..') if len(message) > 35 else message)
         IRCClient.msg(self, user, message, length)
-        
+
     def notice(self, user, message):
         """
         Send a notice to a user.
@@ -333,7 +333,7 @@ class EneIRC(IRCClient):
             user = user.nick
 
         IRCClient.notice(self, user, message)
-        
+
     def describe(self, channel, action):
         """
         Strike a pose.
@@ -353,7 +353,7 @@ class EneIRC(IRCClient):
             self._log.debug('Implicitly converting Hostmask to nick format for action performance: %s --> %s',
                             repr(channel), channel.nick)
             channel = channel.nick
-        
+
         IRCClient.describe(self, channel, action)
 
     ################################
@@ -921,28 +921,28 @@ class PluginAbstract(object):
     This is the class that all third-party plugins should extend.
     """
     # This is the name of the plugin. If None, the class name will be used instead.
-    ENE_IRC_PLUGIN_NAME = None
+    FIREFLY_IRC_PLUGIN_NAME = None
 
     # This is the default permission set required for commands and events.
-    ENE_IRC_PLUGIN_DEFAULT_PERMISSION = 'guest'
+    FIREFLY_IRC_PLUGIN_DEFAULT_PERMISSION = 'guest'
 
     # This is a list of configuration files to load into the plugins default configuration object (self.config)
-    ENE_IRC_PLUGIN_CONFIG = 'plugin'
-    ENE_IRC_PLUGIN_CONFIG_BASEDIR = None
-    ENE_IRC_PLUGIN_CONFIG_DEFAULT = None  # Only used when PLUGIN_CONFIG contains a single config file
+    FIREFLY_IRC_PLUGIN_CONFIG = 'plugin'
+    FIREFLY_IRC_PLUGIN_CONFIG_BASEDIR = None
+    FIREFLY_IRC_PLUGIN_CONFIG_DEFAULT = None  # Only used when PLUGIN_CONFIG contains a single config file
 
     # When True, the plugin class will be instantiated on demand instead of immediately on startup.
-    ENE_IRC_LAZY_LOAD = False  # TODO: Currently has no effect
+    FIREFLY_IRC_LAZY_LOAD = False  # TODO: Currently has no effect
 
-    ENE_STRICT = False
+    FIREFLY_STRICT = False
 
-    def __init__(self, ene):
+    def __init__(self, firefly):
         """
-        @type   ene:    C{ene_irc.EneIRC}
+        @type   firefly:    firefly.FireflyIRC
         """
-        self.name = self.ENE_IRC_PLUGIN_NAME or type(self).__name__.lower()
-        self._log = logging.getLogger('ene_irc.plugins.{0}'.format(self.name))
-        self.ene = ene
+        self.name = self.FIREFLY_IRC_PLUGIN_NAME or type(self).__name__.lower()
+        self._log = logging.getLogger('firefly.plugins.{0}'.format(self.name))
+        self.firefly = firefly
 
         class_path = sys.modules.get(self.__class__.__module__).__file__
         self.plugin_path = os.path.dirname(os.path.realpath(class_path))
@@ -957,26 +957,26 @@ class PluginAbstract(object):
 
         @raise  ValueError: Re-raised if strict mode is enabled and a configuration file can not be loaded
         """
-        if not self.ENE_IRC_PLUGIN_CONFIG:
+        if not self.FIREFLY_IRC_PLUGIN_CONFIG:
             self._log.info('Plugin configuration has been explicitly disabled')
 
-        basedir = self.ENE_IRC_PLUGIN_CONFIG_BASEDIR
-        default = self.ENE_IRC_PLUGIN_CONFIG_DEFAULT
+        basedir = self.FIREFLY_IRC_PLUGIN_CONFIG_BASEDIR
+        default = self.FIREFLY_IRC_PLUGIN_CONFIG_DEFAULT
 
         # Do we just have a single configuration file?
-        if isinstance(self.ENE_IRC_PLUGIN_CONFIG, basestring):
-            name = self.ENE_IRC_PLUGIN_CONFIG
+        if isinstance(self.FIREFLY_IRC_PLUGIN_CONFIG, basestring):
+            name = self.FIREFLY_IRC_PLUGIN_CONFIG
             if name.endswith('.cfg'):
                 name = name[:-4]
 
             try:
-                self.config = EneIRC.load_configuration(name, self, basedir, default)
+                self.config = FireflyIRC.load_configuration(name, self, basedir, default)
             except ValueError:
-                err_msg = 'No plugin configuration file found. Please set ENE_IRC_PLUGIN_CONFIG to None if you wish ' \
-                          'to explicitly disable configuration files for this plugin'
+                err_msg = 'No plugin configuration file found. Please set FIREFLY_IRC_PLUGIN_CONFIG to None if you ' \
+                          'wish to explicitly disable configuration files for this plugin'
 
                 # Re-throw exception if strict mode is enabled
-                if self.ENE_STRICT:
+                if self.FIREFLY_STRICT:
                     self._log.error(err_msg)
                     raise
 
@@ -988,18 +988,18 @@ class PluginAbstract(object):
         # Construct a dictionary to store config instances in
         self.config = {}
 
-        for name in self.ENE_IRC_PLUGIN_CONFIG:
+        for name in self.FIREFLY_IRC_PLUGIN_CONFIG:
             # MAke sure our configuration file has the proper extension
             if name.endswith('.cfg'):
                 name = name[:-4]
 
             try:
-                self.config[name] = EneIRC.load_configuration(name, self, basedir)
+                self.config[name] = FireflyIRC.load_configuration(name, self, basedir)
             except ValueError:
                 err_msg = 'Unable to load plugin configuration file {n}.cfg'.format(n=name)
 
                 # Unless strict mode is enabled, just log the error as a warning and continue
-                if not self.ENE_STRICT:
+                if not self.FIREFLY_STRICT:
                     self._log.warn(err_msg)
                     continue
 
@@ -1016,13 +1016,13 @@ class _Registry(object):
 
     This class is used to contain bindings to plugin classes as well as command and event functions.
     """
-    def __init__(self, ene):
-        self.ene = ene
+    def __init__(self, firefly):
+        self.firefly = firefly
 
         self._commands = {}
         self._events = {}
         self._plugins = {}
-        self._log = logging.getLogger('ene_irc.registry')
+        self._log = logging.getLogger('firefly.registry')
 
     def _get_plugin(self, cls):
         """
@@ -1035,11 +1035,11 @@ class _Registry(object):
         """
         # Make sure we have a valid plugin class
         if not issubclass(cls, PluginAbstract):
-            raise PluginError('Plugin class must extend ene_irc.PluginAbstract')
+            raise PluginError('Plugin class must extend firefly.PluginAbstract')
 
-        name = cls.ENE_IRC_PLUGIN_NAME or cls.__name__
+        name = cls.FIREFLY_IRC_PLUGIN_NAME or cls.__name__
         name = name.lower().strip()
-        obj  = self._plugins[name] if name in self._plugins else cls(self.ene)
+        obj  = self._plugins[name] if name in self._plugins else cls(self.firefly)
 
         return name, obj
 
@@ -1178,11 +1178,11 @@ class TestFactory(protocol.ClientFactory):
     """
 
     def __init__(self, server):
-        self.ene = EneIRC(server)
+        self.firefly = FireflyIRC(server)
 
     def buildProtocol(self, addr):
-        self.ene.factory = self
-        return self.ene
+        self.firefly.factory = self
+        return self.firefly
 
     def clientConnectionLost(self, connector, reason):
         """If we get disconnected, reconnect to server."""

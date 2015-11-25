@@ -1,12 +1,12 @@
 import os
 import errno
-from ene_irc import irc, PluginAbstract
+from firefly import irc, PluginAbstract
 
 
 class Logger(PluginAbstract):
 
-    def __init__(self, ene):
-        PluginAbstract.__init__(self, ene)
+    def __init__(self, firefly):
+        PluginAbstract.__init__(self, firefly)
 
         # Define our logging flags
         self.log_channels   = self.config.getboolean('Logging', 'Log_Channels')
