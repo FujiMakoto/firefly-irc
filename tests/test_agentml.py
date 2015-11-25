@@ -1,5 +1,20 @@
-from .config import AgentMLTestCase
-from ene_irc.languages.aml import AgentML
+import unittest
+
+from firefly.languages.aml import AgentML, AgentMLLanguage
+
+
+class AgentMLTestCase(unittest.TestCase):
+    """
+    Base class for all AgentML test cases
+    """
+    def setUp(self, **kwargs):
+        """
+        Set up the Unit Test
+        """
+        self.aml = AgentMLLanguage()
+
+    def tearDown(self):
+        pass
 
 
 class AgentMLTests(AgentMLTestCase):

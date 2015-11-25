@@ -6,13 +6,13 @@ import arrow
 import mock
 import socket
 
-from ene_irc import EneIRC
-from ene_irc.containers import Server, Channel, ServerInfo, Destination, Hostmask, Message, Identity, Response
+from firefly import FireflyIRC
+from firefly.containers import Server, Channel, ServerInfo, Destination, Hostmask, Message, Identity, Response
 
 
 class ServerTestCase(unittest.TestCase):
 
-    @mock.patch.object(EneIRC, 'load_configuration')
+    @mock.patch.object(FireflyIRC, 'load_configuration')
     def setUp(self, mock_load_configuration):
         self.config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'config')
 
@@ -41,8 +41,8 @@ class ServerTestCase(unittest.TestCase):
         self.assertEqual(self.server.hostname, 'irc.example.org')
         self.assertTrue(self.server.enabled)
         self.assertTrue(self.server.auto_connect)
-        self.assertEqual(self.server.nick, 'Ene')
-        self.assertEqual(self.server.username, 'Ene')
+        self.assertEqual(self.server.nick, 'Firefly')
+        self.assertEqual(self.server.username, 'Firefly')
         self.assertEqual(self.server.realname, 'Nose Tests')
         self.assertIsNone(self.server.password)
         self.assertEqual(self.server.port, 6669)
@@ -84,7 +84,7 @@ class ServerTestCase(unittest.TestCase):
 
 class IdentityTestCase(unittest.TestCase):
 
-    @mock.patch.object(EneIRC, 'load_configuration')
+    @mock.patch.object(FireflyIRC, 'load_configuration')
     def setUp(self, mock_load_configuration):
         self.config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'config')
 
@@ -162,12 +162,12 @@ class DestinationTestCase(unittest.TestCase):
 
     def setUp(self):
         mock_server_info = mock.MagicMock(channel_types=['#', '&'])
-        mock_ene = mock.MagicMock(server_info=mock_server_info)
+        mock_firefly = mock.MagicMock(server_info=mock_server_info)
 
-        self.mock_ene = mock_ene
+        self.mock_firefly = mock_firefly
 
     def test_channel_destination(self):
-        destination = Destination(self.mock_ene, '#test')
+        destination = Destination(self.mock_firefly, '#test')
 
         self.assertEqual(destination.type, destination.CHANNEL)
         self.assertTrue(destination.is_channel)
@@ -178,7 +178,7 @@ class DestinationTestCase(unittest.TestCase):
         self.assertEqual(str(destination), '#test')
 
     def test_user_destination(self):
-        destination = Destination(self.mock_ene, '`TestCase')
+        destination = Destination(self.mock_firefly, '`TestCase')
 
         self.assertEqual(destination.type, destination.USER)
         self.assertFalse(destination.is_channel)
@@ -217,15 +217,15 @@ class MessageTestCase(unittest.TestCase):
 
     def setUp(self):
         mock_server_info = mock.MagicMock(channel_types=['#', '&'])
-        mock_ene = mock.MagicMock(server_info=mock_server_info)
-        self.mock_ene = mock_ene
+        mock_firefly = mock.MagicMock(server_info=mock_server_info)
+        self.mock_firefly = mock_firefly
 
         self.message  = '\x0308,02\x02\x1fHello, world!\x0F'
         self.stripped = 'Hello, world!'
         self.hostmask = Hostmask('Nick!~user@example.org')
 
     def test_message_attributes(self):
-        destination = Destination(self.mock_ene, '&test-channel')
+        destination = Destination(self.mock_firefly, '&test-channel')
         message = Message(self.message, destination, self.hostmask)
 
         self.assertEqual(message.raw, self.message)
@@ -240,7 +240,7 @@ class MessageTestCase(unittest.TestCase):
         self.assertFalse(message.is_action)
 
     def test_notice_attributes(self):
-        destination = Destination(self.mock_ene, 'TestUser')
+        destination = Destination(self.mock_firefly, 'TestUser')
         message = Message(self.message, destination, self.hostmask, Message.NOTICE)
 
         self.assertEqual(message.raw, self.message)
@@ -255,7 +255,7 @@ class MessageTestCase(unittest.TestCase):
         self.assertFalse(message.is_action)
 
     def test_action_attributes(self):
-        destination = Destination(self.mock_ene, '#testchan')
+        destination = Destination(self.mock_firefly, '#testchan')
         message = Message(self.message, destination, self.hostmask, Message.ACTION)
 
         self.assertEqual(message.raw, self.message)
@@ -271,7 +271,7 @@ class MessageTestCase(unittest.TestCase):
 
     def test_get_mentions_start(self):
         test = 'Testcase: hello! This, this is a test.'
-        message = Message(test, self.mock_ene, self.hostmask)
+        message = Message(test, self.mock_firefly, self.hostmask)
 
         r = message.get_mentions(['casetest', 'TestCase'])
         self.assertIsNotNone(r)
@@ -281,7 +281,7 @@ class MessageTestCase(unittest.TestCase):
 
     def test_get_mentions_end(self):
         test = 'Hello! This, this TestCase is a test, TestCase,'
-        message = Message(test, self.mock_ene, self.hostmask)
+        message = Message(test, self.mock_firefly, self.hostmask)
 
         r = message.get_mentions(['casetest', 'TestCase'], message.MENTION_END)
         self.assertIsNotNone(r)
@@ -291,7 +291,7 @@ class MessageTestCase(unittest.TestCase):
 
     def test_get_mentions_anywhere(self):
         test = 'Hello! This, this testCase is a test.'
-        message = Message(test, self.mock_ene, self.hostmask)
+        message = Message(test, self.mock_firefly, self.hostmask)
 
         r = message.get_mentions(['casetest', 'TestCase'], message.MENTION_ANYWHERE)
         self.assertIsNotNone(r)
@@ -304,18 +304,18 @@ class ResponseTestCase(unittest.TestCase):
 
     def setUp(self):
         mock_server_info = mock.MagicMock(channel_types=['#', '&'])
-        mock_ene = mock.MagicMock(server_info=mock_server_info)
-        self.mock_ene = mock_ene
+        mock_firefly = mock.MagicMock(server_info=mock_server_info)
+        self.mock_firefly = mock_firefly
 
-        self.channel_destination = Destination(mock_ene, '#testchan')
-        self.user_destination = Destination(mock_ene, 'test_nick')
+        self.channel_destination = Destination(mock_firefly, '#testchan')
+        self.user_destination = Destination(mock_firefly, 'test_nick')
         self.hostmask = Hostmask('Nick!~user@example.org')
         message  = '\x0308,02\x02\x1fHello, world!\x0F'
         self.channel_message = Message(message, self.channel_destination, self.hostmask)
         self.user_message = Message(message, self.user_destination, self.hostmask)
 
     def test_add_messages(self):
-        response = Response(self.mock_ene, self.channel_message, self.hostmask, self.channel_destination)
+        response = Response(self.mock_firefly, self.channel_message, self.hostmask, self.channel_destination)
 
         message1 = 'Hello world! Message 1'
         message2 = 'Hello world! Message 2'
@@ -335,7 +335,7 @@ class ResponseTestCase(unittest.TestCase):
         self.assertListEqual(response.notices, [])
         
     def test_add_actions(self):
-        response = Response(self.mock_ene, self.channel_message, self.hostmask, self.channel_destination)
+        response = Response(self.mock_firefly, self.channel_message, self.hostmask, self.channel_destination)
 
         message1 = 'performs an action test 1'
         message2 = 'performs an action test 2'
@@ -355,7 +355,7 @@ class ResponseTestCase(unittest.TestCase):
         self.assertListEqual(response.notices, [])
         
     def test_add_notices(self):
-        response = Response(self.mock_ene, self.channel_message, self.hostmask, self.channel_destination)
+        response = Response(self.mock_firefly, self.channel_message, self.hostmask, self.channel_destination)
 
         message1 = 'Hello world! Notice 1'
         message2 = 'Hello world! Notice 2'
@@ -375,7 +375,7 @@ class ResponseTestCase(unittest.TestCase):
         self.assertListEqual(response.notices, [message1, message2, message3])
 
     def test_send_messages(self):
-        response = Response(self.mock_ene, self.channel_message, self.hostmask, self.channel_destination)
+        response = Response(self.mock_firefly, self.channel_message, self.hostmask, self.channel_destination)
 
         message1 = 'Hello world! Message 1'
         message2 = 'performs an action test 2'
@@ -389,9 +389,9 @@ class ResponseTestCase(unittest.TestCase):
         mock_action  = mock.Mock()
         mock_notice  = mock.Mock()
 
-        self.mock_ene.msg      = mock_message
-        self.mock_ene.describe = mock_action
-        self.mock_ene.notice   = mock_notice
+        self.mock_firefly.msg      = mock_message
+        self.mock_firefly.describe = mock_action
+        self.mock_firefly.notice   = mock_notice
 
         response.send()
 
@@ -400,7 +400,7 @@ class ResponseTestCase(unittest.TestCase):
         mock_notice.assert_called_once_with(self.channel_destination, message3)
 
     def test_delivery_timestamps(self):
-        response = Response(self.mock_ene, self.channel_message, self.hostmask, self.channel_destination)
+        response = Response(self.mock_firefly, self.channel_message, self.hostmask, self.channel_destination)
 
         message1 = 'Hello world! Message 1'
         message2 = 'performs an action test 2'
@@ -414,9 +414,9 @@ class ResponseTestCase(unittest.TestCase):
         mock_action  = mock.Mock()
         mock_notice  = mock.Mock()
 
-        self.mock_ene.msg      = mock_message
-        self.mock_ene.describe = mock_action
-        self.mock_ene.notice   = mock_notice
+        self.mock_firefly.msg      = mock_message
+        self.mock_firefly.describe = mock_action
+        self.mock_firefly.notice   = mock_notice
 
         response.send()
 
@@ -425,7 +425,7 @@ class ResponseTestCase(unittest.TestCase):
         self.assertIsInstance(response._delivered[2][2], arrow.Arrow)
 
     def test_delivery_default_channel_destination(self):
-        response = Response(self.mock_ene, self.channel_message, self.hostmask, self.channel_destination)
+        response = Response(self.mock_firefly, self.channel_message, self.hostmask, self.channel_destination)
 
         message1 = 'Hello world! Message 1'
         message2 = 'performs an action test 2'
@@ -439,9 +439,9 @@ class ResponseTestCase(unittest.TestCase):
         mock_action  = mock.Mock()
         mock_notice  = mock.Mock()
 
-        self.mock_ene.msg      = mock_message
-        self.mock_ene.describe = mock_action
-        self.mock_ene.notice   = mock_notice
+        self.mock_firefly.msg      = mock_message
+        self.mock_firefly.describe = mock_action
+        self.mock_firefly.notice   = mock_notice
 
         self.assertEqual(response._destination, response.DEST_CHANNEL)
         self.assertIs(response.destination, self.channel_destination)
@@ -453,7 +453,7 @@ class ResponseTestCase(unittest.TestCase):
         mock_notice.assert_called_once_with(self.channel_destination, message3)
 
     def test_delivery_default_user_destination(self):
-        response = Response(self.mock_ene, self.user_message, self.hostmask, self.user_destination)
+        response = Response(self.mock_firefly, self.user_message, self.hostmask, self.user_destination)
 
         message1 = 'Hello world! Message 1'
         message2 = 'performs an action test 2'
@@ -467,9 +467,9 @@ class ResponseTestCase(unittest.TestCase):
         mock_action  = mock.Mock()
         mock_notice  = mock.Mock()
 
-        self.mock_ene.msg      = mock_message
-        self.mock_ene.describe = mock_action
-        self.mock_ene.notice   = mock_notice
+        self.mock_firefly.msg      = mock_message
+        self.mock_firefly.describe = mock_action
+        self.mock_firefly.notice   = mock_notice
 
         self.assertEqual(response._destination, response.DEST_USER)
         self.assertIs(response.destination, self.hostmask)
@@ -481,7 +481,7 @@ class ResponseTestCase(unittest.TestCase):
         mock_notice.assert_called_once_with(self.hostmask, message3)
 
     def test_delivery_mixed_destinations(self):
-        response = Response(self.mock_ene, self.channel_message, self.hostmask, self.channel_destination)
+        response = Response(self.mock_firefly, self.channel_message, self.hostmask, self.channel_destination)
 
         message1 = 'Hello world! Default message 1'
         message2 = 'performs an action channel test 2'
@@ -495,9 +495,9 @@ class ResponseTestCase(unittest.TestCase):
         mock_action  = mock.Mock()
         mock_notice  = mock.Mock()
 
-        self.mock_ene.msg      = mock_message
-        self.mock_ene.describe = mock_action
-        self.mock_ene.notice   = mock_notice
+        self.mock_firefly.msg      = mock_message
+        self.mock_firefly.describe = mock_action
+        self.mock_firefly.notice   = mock_notice
 
         response.send()
 

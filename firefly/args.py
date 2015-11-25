@@ -1,5 +1,5 @@
 import argparse
-from ene_irc.errors import ArgumentParserError, ArgumentParserExit
+from firefly.errors import ArgumentParserError, ArgumentParserExit
 
 
 class ArgumentParser(argparse.ArgumentParser):

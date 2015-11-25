@@ -1,13 +1,13 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='Ene IRC',
+    name='Firefly IRC',
     version='0.1.0',
-    description='Ene IRC',
-    long_description='Ene IRC',
+    description='Firefly IRC',
+    long_description='Firefly IRC',
     author='Makoto Fujimoto',
     author_email='makoto@makoto.io',
-    url='https://github.com/FujiMakoto/Ene-IRC',
+    url='https://github.com/FujiMakoto/Firefly-IRC',
     license='MIT',
     classifiers=[
         'Development Status :: 1 - Planning',
@@ -15,10 +15,10 @@ setup(
     ],
     packages=find_packages(),
     entry_points={
-        'ene_irc.plugins': [
-            'datetime = ene_irc.plugins.datetime:DateTime',
-            'logging = ene_irc.plugins.logging:Logger',
-            'test = ene_irc.plugins.test:Test'
+        'firefly_irc.plugins': [
+            'datetime = firefly.plugins.datetime:DateTime',
+            'logging = firefly.plugins.logging:Logger',
+            'test = firefly.plugins.test:Test'
         ]
     },
     install_requires=['twisted>=15.4.0,<15.5', 'sqlalchemy>=1.0.9,<1.1', 'alembic>=0.8.3,<0.9', 'pymysql>=0.6.7,<0.7',
@@ -26,6 +26,6 @@ setup(
                       'ircmessage>=0.1,<0.2', 'arrow>=0.7,<0.8'],
     test_requires=['mock>=1.3,<1.4', 'coveralls>=1.1,<1.2'],
     package_data={
-        'ene_irc': ['config/*.cfg'],
+        'firefly': ['config/*.cfg'],
     },
 )

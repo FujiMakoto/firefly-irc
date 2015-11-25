@@ -2,7 +2,7 @@ import shlex
 
 import arrow
 
-import ene_irc
+import firefly
 import logging
 import socket
 import re
@@ -19,7 +19,7 @@ class Server(object):
         @type   config:     ConfigParser.ConfigParser
         @param  config:     Server configuration instance
         """
-        self._log = logging.getLogger('ene_irc.server')
+        self._log = logging.getLogger('firefly.server')
         self._log.info('Loading %s server configuration', hostname)
         self._config = config
 
@@ -46,7 +46,7 @@ class Server(object):
 
         # Attempt to load the server configuration
         try:
-            config = ene_irc.EneIRC.load_configuration(config_filename, basedir='servers', default='default')
+            config = firefly.FireflyIRC.load_configuration(config_filename, basedir='servers', default='default')
         except ValueError:
             self._log.info('%s has no server configuration file present', self.hostname)
             return
@@ -61,13 +61,13 @@ class Server(object):
 
         # Attempt to load the identity configuration
         try:
-            config = ene_irc.EneIRC.load_configuration(config_filename, basedir='identities')
+            config = firefly.FireflyIRC.load_configuration(config_filename, basedir='identities')
         except ValueError:
             self._log.error('Unable to load identity configuration file: %s', config_filename)
             self._log.error('Falling back to default configuration')
 
             identity = 'Default'
-            config = ene_irc.EneIRC.load_configuration('default', basedir='identities')
+            config = firefly.FireflyIRC.load_configuration('default', basedir='identities')
 
         self.identity = Identity(identity, config)
 
@@ -97,7 +97,7 @@ class Identity(object):
         @type   config:     ConfigParser.ConfigParser
         @param  config:     Server configuration instance
         """
-        self._log = logging.getLogger('ene_irc.identity')
+        self._log = logging.getLogger('firefly.identity')
         self._log.info('Loading %s identity configuration', identity)
         self._config = config
 
@@ -123,7 +123,7 @@ class Identity(object):
         return [self.name] + self.aliases
 
     def __repr__(self):
-        return '<EneIRC Container: Identity({id}, ConfigParser)>'.format(id=self.identity)
+        return '<FireflyIRC Container: Identity({id}, ConfigParser)>'.format(id=self.identity)
 
     def __str__(self):
         return self.name
@@ -142,7 +142,7 @@ class Channel(object):
         @type   config: ConfigParser.ConfigParser
         @param  config: Channel configuration instance
         """
-        self._log = logging.getLogger('ene_irc.channel')
+        self._log = logging.getLogger('firefly.channel')
         self._log.info('Loading %s channel configuration for %s', name, server.hostname)
         self._config = config
 
@@ -162,7 +162,7 @@ class ServerInfo(object):
     U{http://www.irc.org/tech_docs/005.html}
     """
     def __init__(self):
-        self._log = logging.getLogger('ene_irc.server_info')
+        self._log = logging.getLogger('firefly.server_info')
 
         # Generic server information
         self.network = None
@@ -408,7 +408,7 @@ class ServerInfo(object):
         self._log.debug('Max away length set: %s', self.max_away_length)
         
     def __repr__(self):
-        return '<EneIRC Container: ServerInfo for {s}>'.format(s=self.network)
+        return '<FireflyIRC Container: ServerInfo for {s}>'.format(s=self.network)
     
     def __str__(self):
         return self.network
@@ -422,15 +422,15 @@ class Destination(object):
     CHANNEL = 'channel'
     USER    = 'user'
 
-    def __init__(self, ene, destination):
+    def __init__(self, irc, destination):
         """
-        @type   ene:            ene_irc.EneIRC
+        @type   irc:            firefly.FireflyIRC
 
         @type   destination:    C{str}
         """
-        self.ene = ene
+        self.firefly = irc
         self.raw = destination
-        self._log = logging.getLogger('ene_irc.source')
+        self._log = logging.getLogger('firefly.source')
 
         # Source type, either channel or user.
         self.type = None
@@ -447,7 +447,7 @@ class Destination(object):
         """
         Parse the destination and determine if it's from a user or a channel.
         """
-        chan_types = self.ene.server_info.channel_types or ['#']
+        chan_types = self.firefly.server_info.channel_types or ['#']
 
         for chan_type in chan_types:
             if self.raw.startswith(chan_type):
@@ -484,7 +484,7 @@ class Destination(object):
         return self.type == self.USER
 
     def __repr__(self):
-        return '<EneIRC Container: Destination(ene, {d})>'.format(d=self.raw)
+        return '<FireflyIRC Container: Destination(firefly, {d})>'.format(d=self.raw)
 
     def __str__(self):
         return self.raw
@@ -498,7 +498,7 @@ class Hostmask(object):
         """
         @type   hostmask:   C{str}
         """
-        self._log = logging.getLogger('ene_irc.client')
+        self._log = logging.getLogger('firefly.client')
         self._regex = re.compile('(?P<nick>[^!]+)!(?P<username>[^@]+)@(?P<host>.+)')
 
         self.hostmask = hostmask
@@ -571,7 +571,7 @@ class Hostmask(object):
         return self._ip
 
     def __repr__(self):
-        return '<EneIRC Container: Hostmask("{h}")>'.format(h=self.hostmask)
+        return '<FireflyIRC Container: Hostmask("{h}")>'.format(h=self.hostmask)
 
     def __str__(self):
         return self.hostmask
@@ -602,7 +602,7 @@ class Message(object):
         @type   message_type:   str
         @param  message_type:   The message type. Either message, notice or action
         """
-        self._log        = logging.getLogger('ene_irc.message')
+        self._log        = logging.getLogger('firefly.message')
         self.raw         = message.strip()
         self.stripped    = unstyle(message).strip()
         self.destination = destination
@@ -643,7 +643,7 @@ class Message(object):
         @type: C{bool}
         """
         # Make sure we actually have a command prefix set
-        command_prefix = self.destination.ene.server.command_prefix
+        command_prefix = self.destination.firefly.server.command_prefix
         if not command_prefix:
             self._log.debug('Server has no command prefix defined, unable to check for command status')
             return False
@@ -655,7 +655,7 @@ class Message(object):
         if not self.is_command:
             raise ValueError('Message does not contain a valid command')
 
-        command_prefix = self.destination.ene.server.command_prefix
+        command_prefix = self.destination.firefly.server.command_prefix
         command = self.stripped[len(command_prefix):].strip()
         parts = shlex.split(command)
 
@@ -690,7 +690,7 @@ class Message(object):
         return self.type == self.ACTION
 
     def __repr__(self):
-        return '<EneIRC Container: Message("{m}", Destination(ene, "{d}"), Hostmask("{h}"), "{t}")>'.format(
+        return '<FireflyIRC Container: Message("{m}", Destination(firefly, "{d}"), Hostmask("{h}"), "{t}")>'.format(
             m=self.stripped.replace('"', '\\"'),
             d=self.destination.raw,
             h=self.source.hostmask,
@@ -706,9 +706,9 @@ class Response(object):
     DEST_CHANNEL = 'channel'
     DEST_USER    = 'user'
 
-    def __init__(self, ene, request, user, channel=None, destination=None):
+    def __init__(self, irc, request, user, channel=None, destination=None):
         """
-        @type   ene:            ene_irc.EneIRC
+        @type   irc:            firefly.FireflyIRC
 
         @type   request:        Message
         @param  request:        The message we are responding to.
@@ -722,8 +722,8 @@ class Response(object):
         @param  destination:    The default destination. If we're replying to a query, it's the user, otherwise channel.
         @type   destination:    str or None
         """
-        self._log         = logging.getLogger('ene_irc.response')
-        self.ene          = ene
+        self._log         = logging.getLogger('firefly.response')
+        self.firefly      = irc
         self.request      = request
         self.channel      = channel
         self.user         = user
@@ -781,19 +781,19 @@ class Response(object):
             try:
                 if msg_type == 'message':
                     self._log.info('Delivering message')
-                    self.ene.msg(self.get_destination(dest) if dest else self.destination, msg)
+                    self.firefly.msg(self.get_destination(dest) if dest else self.destination, msg)
                     self._delivered.append((msg_type, msg, arrow.now()))
                     continue
 
                 if msg_type == 'action':
                     self._log.info('Performing action')
-                    self.ene.describe(self.get_destination(dest) if dest else self.destination, msg)
+                    self.firefly.describe(self.get_destination(dest) if dest else self.destination, msg)
                     self._delivered.append((msg_type, msg, arrow.now()))
                     continue
 
                 if msg_type == 'notice':
                     self._log.info('Delivering notice')
-                    self.ene.notice(self.get_destination(dest) if dest else self.destination, msg)
+                    self.firefly.notice(self.get_destination(dest) if dest else self.destination, msg)
                     self._delivered.append((msg_type, msg, arrow.now()))
                     continue
             except ValueError:
@@ -869,4 +869,4 @@ class Response(object):
         self._destination = value
 
     def __repr__(self):
-        return '<EneIRC Container: Response(ene, Destination(ene, "{d}"))>'.format(d=self.destination.raw)
+        return '<FireflyIRC Container: Response(firefly, Destination(firefly, "{d}"))>'.format(d=self.destination.raw)

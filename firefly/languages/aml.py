@@ -6,7 +6,7 @@ from .interface import LanguageInterface
 class AgentMLLanguage(LanguageInterface):
 
     def __init__(self):
-        self._log = logging.getLogger('ene_irc.language.aml')
+        self._log = logging.getLogger('firefly.language.aml')
         self.aml = AgentML()
         super(AgentMLLanguage, self).__init__()
 

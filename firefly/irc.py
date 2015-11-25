@@ -83,7 +83,7 @@ class event(object):
 
         @return:    The decorated function.
         """
-        logging.getLogger('ene_irc.event').debug('Decorating event function: %s (%s)', self.event_name, str(func))
+        logging.getLogger('firefly.event').debug('Decorating event function: %s (%s)', self.event_name, str(func))
 
         def callback(scanner, name, ob):
             event_name = self.event_name or func.__name__
@@ -94,7 +94,7 @@ class event(object):
                 'reply_ok': self.reply_ok
             }
 
-            scanner.ene.registry.bind_event(event_name, ob, func, params)
+            scanner.firefly.registry.bind_event(event_name, ob, func, params)
             return func
 
         venusian.attach(func, callback, category='events')
@@ -123,14 +123,14 @@ class command(object):
 
         @return:    The decorated function.
         """
-        logging.getLogger('ene_irc.command').debug('Decorating command function: %s (%s)', self.command_name, str(func))
+        logging.getLogger('firefly.command').debug('Decorating command function: %s (%s)', self.command_name, str(func))
 
         def callback(scanner, name, ob):
             command_name = self.command_name or func.__name__
             command_name = command_name.lower().strip()
             params = {'name': command_name, 'permission': self.permission}
 
-            scanner.ene.registry.bind_command(command_name, ob, func, params)
+            scanner.firefly.registry.bind_command(command_name, ob, func, params)
             return func
 
         venusian.attach(func, callback, category='commands')
