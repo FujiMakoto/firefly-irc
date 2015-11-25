@@ -1,5 +1,5 @@
 import logging
-from agentml import AgentML
+from agentml import AgentML, errors
 from .interface import LanguageInterface
 
 
@@ -11,7 +11,10 @@ class AgentMLLanguage(LanguageInterface):
         super(AgentMLLanguage, self).__init__()
 
     def get_reply(self, message, client='localhost', groups=None):
-        return self.aml.get_reply(client, message, groups)
+        try:
+            return self.aml.get_reply(client, message, groups)
+        except errors.AgentMLError as e:
+            self._log.info(e.message)
 
     def load_file(self, file_path):
         self._log.debug('Loading file: %s', file_path)
