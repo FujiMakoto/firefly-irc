@@ -11,13 +11,33 @@ class Context(object):
     CLI Context
     """
     def __init__(self):
-        self.basedir = os.path.join(os.path.dirname(os.path.realpath(__file__)))
+        self.servers = []
 
 
-pass_context = click.make_pass_decorator(Context, ensure=True)
+pass_context  = click.make_pass_decorator(Context, ensure=True)
+plugin_folder = os.path.dirname(__file__)
 
 
-@click.command(context_settings=CONTEXT_SETTINGS)
+class FireflyCLI(click.MultiCommand):
+
+    def list_commands(self, ctx):
+        rv = []
+        for filename in os.listdir(plugin_folder):
+            if filename.endswith('.py') and not filename.startswith('_'):
+                rv.append(filename[:-3])
+        rv.sort()
+        return rv
+
+    def get_command(self, ctx, name):
+        ns = {}
+        fn = os.path.join(plugin_folder, name + '.py')
+        with open(fn) as f:
+            code = compile(f.read(), fn, 'exec')
+            eval(code, ns, ns)
+        return ns['cli']
+
+
+@click.command(cls=FireflyCLI, context_settings=CONTEXT_SETTINGS)
 @click.option('-v', '--verbose', count=True, default=1,
               help='-v|vv|vvv Increase the verbosity of messages: 1 for normal output, 2 for more verbose output and '
                    '3 for debug')
@@ -25,7 +45,7 @@ pass_context = click.make_pass_decorator(Context, ensure=True)
 @pass_context
 def cli(ctx, verbose):
     """
-    IPS Vagrant Management Utility
+    Firefly IRC
     """
     assert isinstance(ctx, Context)
     # Set up the logger
