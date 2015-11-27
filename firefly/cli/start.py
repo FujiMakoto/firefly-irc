@@ -37,7 +37,13 @@ def cli(ctx):
         f.write(str(os.getpid()))
 
     # Run
-    reactor.run()
+    try:
+        reactor.run()
+    except Exception:
+        os.remove(pid_file)
+        raise
+
+    os.remove(pid_file)
 
 
 class FireflyFactory(protocol.ClientFactory):
