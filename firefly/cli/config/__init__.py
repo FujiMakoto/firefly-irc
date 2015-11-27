@@ -46,7 +46,7 @@ class FireflyConfigCLI(click.MultiCommand):
 @pass_context
 def cli(ctx, verbose):
     """
-    Firefly IRC
+    Firefly IRC configuration management utility
     """
     assert isinstance(ctx, Context)
 
