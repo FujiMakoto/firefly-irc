@@ -34,7 +34,8 @@ setup(
     packages=find_packages(exclude=['tests']),
     entry_points={
         'console_scripts': [
-            'firefly = firefly.cli:cli'
+            'firefly = firefly.cli:cli',
+            'firefly-config = firefly.cli.config:cli'
         ],
         'firefly_irc.plugins': [
             'datetime = firefly.plugins.datetime:DateTime',
