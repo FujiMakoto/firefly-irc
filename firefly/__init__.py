@@ -694,7 +694,8 @@ class FireflyIRC(IRCClient):
         @type   quitMessage:    C{str}
         @param  quitMessage:    The quit message.
         """
-        self._fire_event(irc.on_user_quit, user=Hostmask(user), quit_message=quitMessage)
+        message = Message(quitMessage, None, Hostmask(user))
+        self._fire_event(irc.on_user_quit, user=Hostmask(user), quit_message=quitMessage, message=message)
 
     def userKicked(self, kickee, channel, kicker, message):
         """
@@ -712,6 +713,7 @@ class FireflyIRC(IRCClient):
         @type   message:    C{str}
         @param  message:    The kick message.
         """
+        message = Message(message, Destination(self, channel), Hostmask(kicker))
         self._fire_event(irc.on_channel_kick, kickee=kickee, channel=channel, kicker=kicker, message=message)
 
     def action(self, user, channel, data):
