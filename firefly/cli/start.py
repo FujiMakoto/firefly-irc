@@ -1,3 +1,5 @@
+import logging
+
 import click
 import os
 from twisted.internet import protocol, reactor
@@ -48,7 +50,7 @@ def cli(ctx):
 
 class FireflyFactory(protocol.ClientFactory):
     """
-    A factory for generating test connections.
+    A factory for generating Firefly connections.
 
     A new protocol instance will be created each time we connect to the server.
     """
@@ -61,9 +63,13 @@ class FireflyFactory(protocol.ClientFactory):
         return self.firefly
 
     def clientConnectionLost(self, connector, reason):
-        """If we get disconnected, reconnect to server."""
-        raise Exception('Lost connection')
+        """
+        If we get disconnected, reconnect to server.
+        """
+        logging.getLogger('firefly.factory').warn('Lost connection to server: %s', reason)
+        logging.getLogger('firefly.factory').warn('Reconnecting to server: %s', repr(connector))
+        connector.connect()
 
     def clientConnectionFailed(self, connector, reason):
-        print "connection failed:", reason
+        logging.getLogger('firefly.factory').error('Connection failed: %s (%s)', reason, repr(connector))
         reactor.stop()
