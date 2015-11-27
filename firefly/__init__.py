@@ -9,7 +9,6 @@ import appdirs
 import pkg_resources
 import venusian
 from ircmessage import style
-from twisted.internet import reactor, protocol
 from twisted.words.protocols.irc import IRCClient
 
 from firefly import plugins, irc
@@ -63,7 +62,7 @@ class FireflyIRC(IRCClient):
         scanner.scan(plugins)
 
     @staticmethod
-    def load_configuration(name, plugin=None, basedir=None, default=None):
+    def load_configuration(name, plugin=None, basedir=None, default=None, ext='.cfg'):
         """
         Load a single configuration file.
 
@@ -79,11 +78,15 @@ class FireflyIRC(IRCClient):
         @type   default:    str or None
         @param  default:    Name of the default configuration file. Defaults to the name argument.
 
+        @type   ext:        str or None
+        @param  ext:        Configuration file extension. None for no extension (e.g. server configuration files).
+
         @raise  ValueError: Raised if the supplied configuration file does not exist
 
         @rtype: ConfigParser
         """
         log = logging.getLogger('firefly')
+        ext = ext or ''  # If None, we need to convert the extension to an empty string
         paths = []
 
         ################################
@@ -96,7 +99,7 @@ class FireflyIRC(IRCClient):
         if basedir:
             app_path = os.path.join(app_path, basedir)
 
-        app_path = os.path.join(app_path, '{fn}.cfg'.format(fn=default or name))
+        app_path = os.path.join(app_path, '{fn}{ext}'.format(fn=default or name, ext='.cfg' if default else ext))
 
         # Make sure the configuration file actually exists
         if not os.path.isfile(app_path):
@@ -119,7 +122,7 @@ class FireflyIRC(IRCClient):
             log.info('Creating user configuration directory: %s', user_path)
             os.makedirs(user_path, 0o755)
 
-        user_path = os.path.join(user_path, '{fn}.cfg'.format(fn=name))
+        user_path = os.path.join(user_path, '{fn}{ext}'.format(fn=name, ext=ext))
         log.debug('Attempting to load user configuration file: %s', user_path)
 
         if not os.path.isfile(user_path):
@@ -691,7 +694,8 @@ class FireflyIRC(IRCClient):
         @type   quitMessage:    C{str}
         @param  quitMessage:    The quit message.
         """
-        self._fire_event(irc.on_user_quit, user=Hostmask(user), quit_message=quitMessage)
+        message = Message(quitMessage, None, Hostmask(user))
+        self._fire_event(irc.on_user_quit, user=Hostmask(user), quit_message=quitMessage, message=message)
 
     def userKicked(self, kickee, channel, kicker, message):
         """
@@ -709,6 +713,7 @@ class FireflyIRC(IRCClient):
         @type   message:    C{str}
         @param  message:    The kick message.
         """
+        message = Message(message, Destination(self, channel), Hostmask(kicker))
         self._fire_event(irc.on_channel_kick, kickee=kickee, channel=channel, kicker=kicker, message=message)
 
     def action(self, user, channel, data):
@@ -1198,26 +1203,3 @@ class _Registry(object):
             all_events += events[name]
 
         return all_events
-
-
-class TestFactory(protocol.ClientFactory):
-    """
-    A factory for generating test connections.
-
-    A new protocol instance will be created each time we connect to the server.
-    """
-
-    def __init__(self, server):
-        self.firefly = FireflyIRC(server)
-
-    def buildProtocol(self, addr):
-        self.firefly.factory = self
-        return self.firefly
-
-    def clientConnectionLost(self, connector, reason):
-        """If we get disconnected, reconnect to server."""
-        raise Exception('Lost connection')
-
-    def clientConnectionFailed(self, connector, reason):
-        print "connection failed:", reason
-        reactor.stop()

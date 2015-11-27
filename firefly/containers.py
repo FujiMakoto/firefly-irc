@@ -42,11 +42,12 @@ class Server(object):
         self._load_identity()
 
     def _load_channels(self):
-        config_filename = re.sub('\W', '_', self.hostname)
+        config_filename = re.sub('\s', '_', self.hostname)
 
         # Attempt to load the server configuration
         try:
-            config = firefly.FireflyIRC.load_configuration(config_filename, basedir='servers', default='default')
+            config = firefly.FireflyIRC.load_configuration(config_filename, basedir='servers',
+                                                           default='default', ext=None)
         except ValueError:
             self._log.info('%s has no server configuration file present', self.hostname)
             return
@@ -518,7 +519,7 @@ class Hostmask(object):
 
         # Make sure we have a valid hostmask.
         if not match:
-            self._log.warn('Unrecognized hostmask format: %s', self.hostmask)
+            self._log.info('Unrecognized hostmask format: %s', self.hostmask)
             return
 
         self.nick, self.username, self.host = match.groups()
@@ -730,7 +731,7 @@ class Response(object):
         self._messages    = []
         self._delivered   = []
         self._destination = destination or (
-            self.DEST_CHANNEL if self.request.destination.is_channel else self.DEST_USER
+            self.DEST_CHANNEL if self.request and self.request.destination.is_channel else self.DEST_USER
         )
         self.block        = False  # Set to True to stop any further event calls, this should be used with great care.
         self.sent         = False  # Becomes True after all messages in the queue have been delivered.

@@ -1,6 +1,6 @@
 # General requirements
 twisted~=15.4.0
-sqlalchemy~=1.0.9
+click~=6.0
 alembic~=0.8.3
 pymysql~=0.6.7
 voluptuous~=0.8.7
