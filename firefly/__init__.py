@@ -62,7 +62,7 @@ class FireflyIRC(IRCClient):
         scanner.scan(plugins)
 
     @staticmethod
-    def load_configuration(name, plugin=None, basedir=None, default=None):
+    def load_configuration(name, plugin=None, basedir=None, default=None, ext='.cfg'):
         """
         Load a single configuration file.
 
@@ -78,11 +78,15 @@ class FireflyIRC(IRCClient):
         @type   default:    str or None
         @param  default:    Name of the default configuration file. Defaults to the name argument.
 
+        @type   ext:        str or None
+        @param  ext:        Configuration file extension. None for no extension (e.g. server configuration files).
+
         @raise  ValueError: Raised if the supplied configuration file does not exist
 
         @rtype: ConfigParser
         """
         log = logging.getLogger('firefly')
+        ext = ext or ''  # If None, we need to convert the extension to an empty string
         paths = []
 
         ################################
@@ -95,7 +99,7 @@ class FireflyIRC(IRCClient):
         if basedir:
             app_path = os.path.join(app_path, basedir)
 
-        app_path = os.path.join(app_path, '{fn}.cfg'.format(fn=default or name))
+        app_path = os.path.join(app_path, '{fn}{ext}'.format(fn=default or name, ext='.cfg' if default else ext))
 
         # Make sure the configuration file actually exists
         if not os.path.isfile(app_path):
@@ -118,7 +122,7 @@ class FireflyIRC(IRCClient):
             log.info('Creating user configuration directory: %s', user_path)
             os.makedirs(user_path, 0o755)
 
-        user_path = os.path.join(user_path, '{fn}.cfg'.format(fn=name))
+        user_path = os.path.join(user_path, '{fn}{ext}'.format(fn=name, ext=ext))
         log.debug('Attempting to load user configuration file: %s', user_path)
 
         if not os.path.isfile(user_path):

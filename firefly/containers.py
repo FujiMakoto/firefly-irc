@@ -42,11 +42,12 @@ class Server(object):
         self._load_identity()
 
     def _load_channels(self):
-        config_filename = re.sub('\W', '_', self.hostname)
+        config_filename = re.sub('\s', '_', self.hostname)
 
         # Attempt to load the server configuration
         try:
-            config = firefly.FireflyIRC.load_configuration(config_filename, basedir='servers', default='default')
+            config = firefly.FireflyIRC.load_configuration(config_filename, basedir='servers',
+                                                           default='default', ext=None)
         except ValueError:
             self._log.info('%s has no server configuration file present', self.hostname)
             return

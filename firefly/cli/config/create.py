@@ -47,7 +47,7 @@ def cli(ctx, host, port, auto, nick, username, realname, ssl, password, channels
         servers_config.remove_section(host)
 
     # Make sure a configuration file for this server doesn't already exist
-    hostname_fn = '{h}.cfg'.format(h=re.sub('\s', '_', host))
+    hostname_fn = re.sub('\s', '_', host)
     host_cfg_path = os.path.join(servers_dir, hostname_fn)
 
     if os.path.exists(host_cfg_path):
