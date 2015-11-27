@@ -9,7 +9,6 @@ import appdirs
 import pkg_resources
 import venusian
 from ircmessage import style
-from twisted.internet import reactor, protocol
 from twisted.words.protocols.irc import IRCClient
 
 from firefly import plugins, irc
@@ -1198,26 +1197,3 @@ class _Registry(object):
             all_events += events[name]
 
         return all_events
-
-
-class TestFactory(protocol.ClientFactory):
-    """
-    A factory for generating test connections.
-
-    A new protocol instance will be created each time we connect to the server.
-    """
-
-    def __init__(self, server):
-        self.firefly = FireflyIRC(server)
-
-    def buildProtocol(self, addr):
-        self.firefly.factory = self
-        return self.firefly
-
-    def clientConnectionLost(self, connector, reason):
-        """If we get disconnected, reconnect to server."""
-        raise Exception('Lost connection')
-
-    def clientConnectionFailed(self, connector, reason):
-        print "connection failed:", reason
-        reactor.stop()
