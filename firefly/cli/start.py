@@ -42,10 +42,12 @@ def cli(ctx):
     try:
         reactor.run()
     except Exception:
-        os.remove(pid_file)
+        if os.path.exists(pid_file):
+            os.remove(pid_file)
         raise
 
-    os.remove(pid_file)
+    if os.path.exists(pid_file):
+        os.remove(pid_file)
 
 
 class FireflyFactory(protocol.ClientFactory):
