@@ -519,7 +519,7 @@ class Hostmask(object):
 
         # Make sure we have a valid hostmask.
         if not match:
-            self._log.warn('Unrecognized hostmask format: %s', self.hostmask)
+            self._log.info('Unrecognized hostmask format: %s', self.hostmask)
             return
 
         self.nick, self.username, self.host = match.groups()
