@@ -25,7 +25,7 @@ class ServerTestCase(unittest.TestCase):
         self.identity_config = ConfigParser()
         self.identity_config.read(os.path.join(self.config_path, 'identities', 'test.cfg'))
 
-        def load_configuration(name, plugin=None, basedir=None, default=None):
+        def load_configuration(name, plugin=None, basedir=None, default=None, ext='.cfg'):
             if basedir == 'servers':
                 return self.channel_config
 
