@@ -236,16 +236,15 @@ class FireflyIRC(IRCClient):
 
             # response = func(cls, **kwargs)
             message = kwargs.get('message')
-            response = func(cls, Response(
+            response = Response(
                 self,
                 message,
                 message.source if message else None,
                 message.destination if message and message.destination.is_channel else None
-            ), **kwargs)
-            if response:
-                if not isinstance(response, Response):
-                    self._log.error('Bad command response type: %s (%s)', str(type(response)), str(response))
-                response.send()
+            )
+
+            func(cls, response, **kwargs)
+            response.send()
 
     def _fire_command(self, plugin, name, cmd_args, message):
         """
