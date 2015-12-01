@@ -9,3 +9,6 @@ agentml~=0.3.1
 venusian~=1.0
 ircmessage~=0.1
 arrow~=0.7.0
+
+# Google plugin
+poogle~=0.1
