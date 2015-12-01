@@ -324,7 +324,7 @@ class FireflyIRC(IRCClient):
             user = user.nick
 
         self._log.debug('Delivering message to %s : %s', user, (message[:35] + '..') if len(message) > 35 else message)
-        IRCClient.msg(self, user, message, length)
+        IRCClient.msg(self, user, message.encode('utf-8'), length)
 
     def notice(self, user, message):
         """
