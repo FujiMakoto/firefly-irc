@@ -41,7 +41,8 @@ setup(
             'google = firefly.plugins.google:Google',
             'datetime = firefly.plugins.datetime:DateTime',
             'logging = firefly.plugins.logging:Logger',
-            'test = firefly.plugins.test:Test'
+            'test = firefly.plugins.test:Test',
+            'url = firefly.plugins.url:Url'
         ]
     },
     install_requires=['twisted>=15.4.0,<15.5', 'click>=6.2,<6.3', 'alembic>=0.8.3,<0.9', 'pymysql>=0.6.7,<0.7',
