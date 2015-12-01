@@ -49,20 +49,31 @@ class ServerTestCase(unittest.TestCase):
         self.assertFalse(self.server.ssl)
 
     def test_server_channel_containers_length(self):
+        self.server.add_channel('#first')
+        self.server.add_channel('#second')
+        self.server.add_channel('#third')
         self.assertEqual(len(self.server.channels), 3)
         
     def test_first_server_channel_attributes(self):
-        first = self.server.channels.pop(0)
+        self.server.add_channel('#first')
+        self.server.add_channel('#second')
+        self.server.add_channel('#third')
+
+        first = self.server.channels['#first']
         self.assertIsInstance(first, Channel)
         self.assertIsInstance(first._config, ConfigParser)
         
         self.assertIs(first.server, self.server)
         self.assertEqual(first.name, '#first')
-        self.assertFalse(first.autojoin)
+        self.assertTrue(first.autojoin)
         self.assertIsNone(first.password)
         
     def test_second_server_channel_attributes(self):
-        second = self.server.channels.pop(1)
+        self.server.add_channel('#first')
+        self.server.add_channel('#second')
+        self.server.add_channel('#third')
+
+        second = self.server.channels['#second']
         self.assertIsInstance(second, Channel)
         self.assertIsInstance(second._config, ConfigParser)
         
@@ -72,10 +83,14 @@ class ServerTestCase(unittest.TestCase):
         self.assertIsNone(second.password)
         
     def test_third_server_channel_attributes(self):
-        third = self.server.channels.pop(2)
+        self.server.add_channel('#first')
+        self.server.add_channel('#second')
+        self.server.add_channel('#third')
+
+        third = self.server.channels['#third']
         self.assertIsInstance(third, Channel)
         self.assertIsInstance(third._config, ConfigParser)
-        
+
         self.assertIs(third.server, self.server)
         self.assertEqual(third.name, '#third')
         self.assertFalse(third.autojoin)

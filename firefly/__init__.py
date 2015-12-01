@@ -39,6 +39,8 @@ class FireflyIRC(IRCClient):
 
     def __init__(self, server, language='aml'):
         """
+        @type   server:     firefly.containers.Server
+
         @type   language:   C{str}
         @param  language:   The language engine to use for this instance.
         """
@@ -488,6 +490,9 @@ class FireflyIRC(IRCClient):
         reply_dest  = destination
         groups = set()
 
+        # Log the message
+        self.server.get_or_create_channel(channel).message_log.add_message(message)
+
         # Is the message a command?
         if message.is_command:
             self._log.debug('Message registered as a command: %s', repr(message))
@@ -546,6 +551,7 @@ class FireflyIRC(IRCClient):
         @type   channel:    C{str}
         @param  channel:    Name of the channel.
         """
+        self.server.add_channel(channel)
         self._fire_event(irc.on_client_join, channel=Destination(self, channel))
 
     def left(self, channel):
@@ -555,6 +561,7 @@ class FireflyIRC(IRCClient):
         @type   channel:    C{str}
         @param  channel:    Name of the channel.
         """
+        self.server.remove_channel(channel)
         self._fire_event(irc.on_client_part, channel=Destination(self, channel))
 
     def noticed(self, user, channel, message):
@@ -628,7 +635,9 @@ class FireflyIRC(IRCClient):
         Called after successfully signing on to the server.
         """
         # Connect to our autojoin channels
-        for channel in self.server.channels:
+        channels = self.server.autojoin_channels
+
+        for name, channel in channels.iteritems():
             if channel.autojoin:
                 self.join(channel.name)
 

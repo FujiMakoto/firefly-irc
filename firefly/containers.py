@@ -1,6 +1,9 @@
 import shlex
+from collections import deque
+from time import time
 
 import arrow
+import itertools
 
 import firefly
 import logging
@@ -22,6 +25,8 @@ class Server(object):
         self._log = logging.getLogger('firefly.server')
         self._log.info('Loading %s server configuration', hostname)
         self._config = config
+        self._server_config = None
+        self._config_channels = {}
 
         self.hostname       = hostname
         self.enabled        = config.getboolean(hostname, 'Enabled')
@@ -37,24 +42,28 @@ class Server(object):
         self.command_prefix = self._parse_command_prefix(config.get(hostname, 'CommandPrefix'))
         self.public_errors  = config.getboolean(hostname, 'PublicErrors')
 
-        self.channels = []
-        self._load_channels()
+        self._load_server_config()
         self._load_identity()
+        self.channels = {}
 
-    def _load_channels(self):
+    def _load_server_config(self):
+        """
+        Attempt to load the server configuration
+        """
         config_filename = re.sub('\s', '_', self.hostname)
 
-        # Attempt to load the server configuration
         try:
-            config = firefly.FireflyIRC.load_configuration(config_filename, basedir='servers',
-                                                           default='default', ext=None)
+            self._server_config = firefly.FireflyIRC.load_configuration(config_filename, basedir='servers',
+                                                                        default='default', ext=None)
         except ValueError:
             self._log.info('%s has no server configuration file present', self.hostname)
             return
 
-        channels = config.sections()
-        for channel in channels:
-            self.channels.append(Channel(self, channel, config))
+        sections = self._server_config.sections()
+        for channel in sections:
+            chan = Channel(self, channel, self._server_config)
+            self._log.info('%s channel configuration loaded', channel)
+            self._config_channels[channel] = chan
 
     def _load_identity(self):
         identity = self._config.get(self.hostname, 'Identity')
@@ -74,7 +83,7 @@ class Server(object):
 
     def _parse_command_prefix(self, prefix):
         """
-        # Make sure we're not trying to stupidly use a word character as the command prefix
+        Make sure we're not trying to stupidly use a word character as the command prefix
 
         @type   prefix: str
 
@@ -86,6 +95,73 @@ class Server(object):
             return False
 
         return prefix
+
+    def get_or_create_channel(self, name):
+        """
+        Fetch or create and return a Channel instance.
+
+        @type   name:   str
+        @param  name:   Name of the channel to fetch
+
+        @rtype: Channel
+        """
+        # Does this channel already exist?
+        if name in self.channels:
+            return self.channels[name]
+
+        # Create a new channel instance and return
+        self.add_channel(name)
+        return self.channels[name]
+
+    def add_channel(self, name):
+        """
+        Add a channel to the channels list
+        @type   name:   str
+        """
+        self._log.info('Adding %s to the server channel list', name)
+
+        # Does this exist as an autojoin channel?
+        if name in self._config_channels:
+            self.channels[name] = self._config_channels[name]
+            return
+
+        # Create a new channel instance and return
+        self.channels[name] = Channel(self, name)
+
+    def remove_channel(self, name):
+        """
+        Remove a channel to the channels list
+        @type   name:   str
+        """
+        self._log.info('Removing %s from the server channel list', name)
+
+        if name not in self.channels:
+            self._log.warning('%s not in the channels list', name)
+            return
+
+        del self.channels[name]
+
+    @property
+    def autojoin_channels(self):
+        """
+        Load autojoin channels from the configuration
+        @rtype: dict of (str: Channel)
+        """
+        if not self._server_config:
+            self._log.info('No server configuration to load autojoin channels from')
+            return {}
+
+        channels = {}
+
+        for name, channel in self._config_channels.iteritems():
+            if not channel.autojoin:
+                self._log.info('Skipping non-autojoin channel %s', name)
+                continue
+            self._log.info('%s registered as an autojoin channel', name)
+
+            channels[name] = channel
+
+        return channels
 
 
 class Identity(object):
@@ -132,7 +208,7 @@ class Identity(object):
 
 class Channel(object):
 
-    def __init__(self, server, name, config):
+    def __init__(self, server, name, config=None):
         """
         @type   server: Server
         @param  server: The server this channel is on.
@@ -140,7 +216,7 @@ class Channel(object):
         @type   name:   str
         @param  name:   Channel name (with prefix)
 
-        @type   config: ConfigParser.ConfigParser
+        @type   config: ConfigParser.ConfigParser or None
         @param  config: Channel configuration instance
         """
         self._log = logging.getLogger('firefly.channel')
@@ -149,8 +225,10 @@ class Channel(object):
 
         self.server     = server
         self.name       = name
-        self.autojoin   = config.getboolean(name, 'Autojoin')
-        self.password   = config.get(name, 'Password') or None
+        self.autojoin   = (config.getboolean(name, 'Autojoin')) if config else None
+        self.password   = (config.get(name, 'Password') or None) if config else None
+
+        self.message_log = ChannelLog(self)
 
 
 class ServerInfo(object):
@@ -871,3 +949,56 @@ class Response(object):
 
     def __repr__(self):
         return '<FireflyIRC Container: Response(firefly, Destination(firefly, "{d}"))>'.format(d=self.destination.raw)
+
+
+class ChannelLog(object):
+
+    def __init__(self, channel, maxlen=100):
+        """
+        @type   channel:    Channel
+        @param  channel:    The channel being logged
+
+        @type   maxlen:     int
+        @param  maxlen:     The maximum length of the channel log. Old messages are dropped after this limit is reached.
+        """
+        self._log       = logging.getLogger('firefly.channel_log')
+        self._log.info('Instantiating a new channel logger for %s with a length limit of %d', channel.name, maxlen)
+
+        self.channel    = channel
+        self._messages  = deque(maxlen=maxlen)
+
+    def add_message(self, message):
+        """
+        Add a message to the channel log
+        @type   message:    Message
+        """
+        self._log.info('Logging new %s channel message', self.channel.name)
+        self._messages.appendleft((time(), message))
+
+    def get_last(self, messages=1):
+        """
+        Get the last XX logged messages
+
+        @type   messages:   int
+
+        @return:    Returns a single tuple if messages is 1, otherwise a list of tuples
+        @rtype      tuple or list of tuple
+        """
+        if messages == 1:
+            return self._messages[0]
+
+        return list(itertools.islice(self._messages, 0, messages - 1))
+
+    def get_first(self, messages=1):
+        """
+        Get the first XX logged messages
+
+        @type   messages:   int
+
+        @return:    Returns a single tuple if messages is 1, otherwise a list of tuples
+        @rtype      tuple or list of tuple
+        """
+        if messages == 1:
+            return self._messages[len(self._messages) - 1]
+
+        return list(itertools.islice(self._messages, len(self._messages), messages - 1))
