@@ -123,7 +123,7 @@ class Seen(PluginAbstract):
             bits = []
 
             # Get the formatted date string
-            date_string = date.humanize() if args.relative else date.format('MMMM DD, YYYY - HH:mm A ZZ')
+            date_string = date.humanize() if args.relative else date.format('MMMM D, YYYY - h:mm A ZZ')
             bits.append(style(date_string, bold=args.message))
 
             if args.message:
