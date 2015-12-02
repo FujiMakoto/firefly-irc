@@ -11,6 +11,7 @@ class AgentMLLanguage(LanguageInterface):
         super(AgentMLLanguage, self).__init__()
 
     def get_reply(self, message, client='localhost', groups=None):
+        message = unicode(message, 'utf-8')
         try:
             return self.aml.get_reply(client, message, groups)
         except errors.AgentMLError as e:
