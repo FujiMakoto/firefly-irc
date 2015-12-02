@@ -41,6 +41,7 @@ setup(
             'google = firefly.plugins.google:Google',
             'datetime = firefly.plugins.datetime:DateTime',
             'logging = firefly.plugins.logging:Logger',
+            'seen = firefly.plugins.seen:Seen',
             'test = firefly.plugins.test:Test',
             'url = firefly.plugins.url:Url'
         ]

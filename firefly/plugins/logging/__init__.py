@@ -240,10 +240,12 @@ class Logger(PluginAbstract):
         @param  log_type:   Either Logging.TYPE_CHANNEL or Logging.TYPE_QUERY
 
         @rtype: _io.TextIOWrapper
+
+        @raise  KeyError:   Raised if the requested logfile does not exist or has not been opened yet.
         """
         if name not in self._logs[log_type]:
-            self._log.warn('No logfile has been opened for %s (type: %s)', name, log_type)
-            return
+            self._log.info('No logfile has been opened for %s (type: %s)', name, log_type)
+            raise KeyError('No logfile has been opened for {n} (type: {t})'.format(n=name, t=log_type))
 
         # Flush the logfile before opening it
         self._logs[log_type][name].flush()

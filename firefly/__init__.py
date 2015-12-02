@@ -1216,3 +1216,7 @@ class _Registry(object):
             all_events += events[name]
 
         return all_events
+
+    @property
+    def plugins(self):
+        return self._plugins

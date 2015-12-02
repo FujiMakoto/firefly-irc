@@ -965,7 +965,7 @@ class ChannelLog(object):
         self._log.info('Instantiating a new channel logger for %s with a length limit of %d', channel.name, maxlen)
 
         self.channel    = channel
-        self._messages  = deque(maxlen=maxlen)
+        self.messages   = deque(maxlen=maxlen)
 
     def add_message(self, message):
         """
@@ -973,7 +973,7 @@ class ChannelLog(object):
         @type   message:    Message
         """
         self._log.info('Logging new %s channel message', self.channel.name)
-        self._messages.appendleft((time(), message))
+        self.messages.appendleft((time(), message))
 
     def get_last(self, messages=1):
         """
@@ -985,9 +985,9 @@ class ChannelLog(object):
         @rtype      tuple or list of tuple
         """
         if messages == 1:
-            return self._messages[0]
+            return self.messages[0]
 
-        return list(itertools.islice(self._messages, 0, messages - 1))
+        return list(itertools.islice(self.messages, 0, messages - 1))
 
     def get_first(self, messages=1):
         """
@@ -999,6 +999,6 @@ class ChannelLog(object):
         @rtype      tuple or list of tuple
         """
         if messages == 1:
-            return self._messages[len(self._messages) - 1]
+            return self.messages[len(self.messages) - 1]
 
-        return list(itertools.islice(self._messages, len(self._messages), messages - 1))
+        return list(itertools.islice(self.messages, len(self.messages), messages - 1))
