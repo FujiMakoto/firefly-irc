@@ -1082,9 +1082,14 @@ class _Registry(object):
 
         name = cls.FIREFLY_IRC_PLUGIN_NAME or cls.__name__
         name = name.lower().strip()
-        obj  = self._plugins[name] if name in self._plugins else cls(self.firefly)
 
-        return name, obj
+        if name in self._plugins:
+            self._log.debug('Returning already instantiated %s plugin instance', name)
+        else:
+            self._log.debug('Instantiating new %s plugin instance', name)
+            self._plugins[name] = cls(self.firefly)
+
+        return name, self._plugins[name]
 
     def bind_command(self, name, cls, func, params):
         """
