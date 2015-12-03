@@ -1007,6 +1007,7 @@ class PluginAbstract(object):
         self.plugin_path = os.path.dirname(os.path.realpath(class_path))
 
         self.config = NotImplemented
+        """@type: ConfigParser"""
         self._load_configuration()
         self._load_language()
 
