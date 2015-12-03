@@ -3,7 +3,6 @@ import logging
 import arrow
 from passlib.hash import bcrypt
 
-from firefly import FireflyIRC
 from firefly.errors import AuthError, AuthAlreadyLoggedInError, AuthNoSuchUserError, AuthBadLoginError
 
 
@@ -14,7 +13,7 @@ class Auth(object):
         @type   firefly:    firefly.FireflyIRC
         """
         self._log = logging.getLogger('firefly.auth')
-        self._users_config = FireflyIRC.load_configuration('users')
+        self._users_config = firefly.load_configuration('users')
 
         self.firefly = firefly
         self._sessions = {}
