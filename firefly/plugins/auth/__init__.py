@@ -1,7 +1,6 @@
 from ircmessage import style
 
 from firefly import irc, PluginAbstract
-from firefly.auth import Auth
 from firefly.errors import AuthAlreadyLoggedInError, AuthError
 
 
@@ -14,7 +13,6 @@ class AuthPlugin(PluginAbstract):
         @type   firefly:    firefly.FireflyIRC
         """
         super(AuthPlugin, self).__init__(firefly)
-        self.auth = Auth(firefly)
 
     @irc.command()
     def status(self, args):
@@ -28,7 +26,7 @@ class AuthPlugin(PluginAbstract):
             """
             @type   response:   firefly.containers.Response
             """
-            user = self.auth.check(response.request.source)
+            user = self.firefly.auth.check(response.request.source)
             if not user:
                 response.add_message('You are not logged in.')
                 return
@@ -52,7 +50,7 @@ class AuthPlugin(PluginAbstract):
             @type   response:   firefly.containers.Response
             """
             try:
-                self.auth.attempt(response.request.source, args.email, args.password)
+                self.firefly.auth.attempt(response.request.source, args.email, args.password)
             except AuthAlreadyLoggedInError as e:
                 response.add_message('You are already logged in to an account.')
                 return
@@ -76,7 +74,7 @@ class AuthPlugin(PluginAbstract):
             """
             @type   response:   firefly.containers.Response
             """
-            if self.auth.logout(response.request.source):
+            if self.firefly.auth.logout(response.request.source):
                 response.add_message('You have been logged out successfully.')
             else:
                 response.add_message('You are not logged in.')

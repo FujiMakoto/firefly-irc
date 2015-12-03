@@ -13,6 +13,7 @@ from twisted.words.protocols.irc import IRCClient
 
 from firefly import plugins, irc
 from firefly.args import ArgumentParser
+from firefly.auth import User, Auth
 from firefly.containers import ServerInfo, Destination, Hostmask, Message, Response
 from errors import LanguageImportError, PluginCommandExistsError, PluginError, NoSuchPluginError, NoSuchCommandError, \
     ArgumentParserError
@@ -57,6 +58,9 @@ class FireflyIRC(IRCClient):
         self.server = server
         self._setup()
         self.load_language_files()
+
+        # Set up our authentication manager
+        self.auth = Auth(self)
 
         # Finally, now that everything is set up, load our plugins
         self.plugins = pkg_resources.get_entry_map('firefly_irc', 'firefly.plugins')
@@ -265,8 +269,33 @@ class FireflyIRC(IRCClient):
         @param  message:    Command message container
         """
         self._log.info('Firing command: %s %s (%s)', plugin, name, str(cmd_args))
-        cls, func, argparse = self.registry.get_command(plugin, name)
+        cls, func, argparse, params = self.registry.get_command(plugin, name)
 
+        # Make sure we have permission
+        perm = params['permission']
+        user = self.auth.check(message.source)
+
+        if (perm != 'guest') and not user:
+            error = 'You must be registered and authenticated in order to use this command.'
+
+            if self.server.public_errors:
+                self.msg(message.destination, error)
+            else:
+                self.notice(message.source, error)
+
+            return
+
+        if (perm == 'admin') and not user.is_admin:
+            error = 'You do not have permission to use this command.'
+
+            if self.server.public_errors:
+                self.msg(message.destination, error)
+            else:
+                self.notice(message.source, error)
+
+            return
+
+        # Execute the command
         try:
             response = Response(
                 self, message, message.source, message.destination if message.destination.is_channel else None
@@ -1128,7 +1157,7 @@ class _Registry(object):
         dec_func = func(plugin_obj, ap)
 
         # Map the command
-        self._commands[plugin_name][name] = (plugin_obj, dec_func, ap)
+        self._commands[plugin_name][name] = (plugin_obj, dec_func, ap, params)
 
     def get_command(self, plugin, name):
         """
@@ -1140,7 +1169,8 @@ class _Registry(object):
         @type   name:   str
         @param  name:   Name of the command to retrieve.
 
-        @rtype: tuple
+        @rtype: tuple of (object, function, ArgumentParser, dict)
+
         @raise  NoSuchPluginError:  Raised if the requested plugin does not exist.
         @raise  NoSuchCommandError: Raised if the requested command does not exist.
         """

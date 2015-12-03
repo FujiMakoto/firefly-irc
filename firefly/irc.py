@@ -73,7 +73,7 @@ class event(object):
         @param  permission: The minimum user permission level required to trigger this event.
         """
         self.event_name = event_name
-        self.permission = permission
+        self.permission = permission.strip().lower() if permission else 'guest'
         self.command_ok = kwargs.get('command_ok', False)
         self.reply_ok   = kwargs.get('reply_ok', False)
 
@@ -106,7 +106,7 @@ class command(object):
     """
     IRC command decorator.
     """
-    def __init__(self, command_name=None, permission=None):
+    def __init__(self, command_name=None, permission=None, **kwargs):
         """
         @type   command_name:   C{str} or C{None}
         @param  command_name:   Name of the command. If None, uses the name of the function.
@@ -115,7 +115,7 @@ class command(object):
         @param  permission: The minimum user permission level required to call this command.
         """
         self.command_name = command_name
-        self.permission = permission
+        self.permission = permission.strip().lower() if permission else 'guest'
 
     def __call__(self, func):
         """
@@ -127,7 +127,7 @@ class command(object):
 
         def callback(scanner, name, ob):
             command_name = self.command_name or func.__name__
-            command_name = command_name.lower().strip()
+            command_name = command_name.lower().strip().replace(' ', '_')
             params = {'name': command_name, 'permission': self.permission}
 
             scanner.firefly.registry.bind_command(command_name, ob, func, params)
