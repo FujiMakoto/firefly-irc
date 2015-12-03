@@ -38,6 +38,7 @@ setup(
             'firefly-config = firefly.cli.config:cli'
         ],
         'firefly_irc.plugins': [
+            'auth = firefly.plugins.auth:AuthPlugin',
             'google = firefly.plugins.google:Google',
             'datetime = firefly.plugins.datetime:DateTime',
             'logging = firefly.plugins.logging:Logger',
