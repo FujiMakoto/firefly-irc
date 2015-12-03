@@ -41,6 +41,7 @@ setup(
             'auth = firefly.plugins.auth:AuthPlugin',
             'google = firefly.plugins.google:Google',
             'datetime = firefly.plugins.datetime:DateTime',
+            'dictionary = firefly.plugins.dictionary:Dictionary',
             'logging = firefly.plugins.logging:Logger',
             'seen = firefly.plugins.seen:Seen',
             'test = firefly.plugins.test:Test',
