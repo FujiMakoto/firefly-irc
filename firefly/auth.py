@@ -14,7 +14,7 @@ class Auth(object):
         @type   firefly:    firefly.FireflyIRC
         """
         self._log = logging.getLogger('firefly.auth')
-        self._users = FireflyIRC.load_configuration('users')
+        self._users_config = FireflyIRC.load_configuration('users')
 
         self.firefly = firefly
         self._sessions = {}
@@ -23,7 +23,7 @@ class Auth(object):
         """
         Check and see if the specified hostmask has an active authentication session
         @type   hostmask:   firefly.containers.Hostmask
-        @rtype: bool
+        @rtype: User or bool
         """
         self._log.info('Checking to see if %s has an active auth session', hostmask.nick)
 
@@ -35,14 +35,14 @@ class Auth(object):
         # If it does, make sure it's active
         if self._sessions[hostmask.host].active:
             self._log.info('The auth session for %s is active', hostmask.host)
-            return True
+            return self._sessions[hostmask.host].user
 
         # If it's not active, remove it and return false
         self._log.info('The auth session for %s has expired', hostmask.host)
         del self._sessions[hostmask.host]
         return False
 
-    def login(self, hostmask, email, password):
+    def attempt(self, hostmask, email, password):
         """
         Attempt to authenticate the specified hostmask.
 
@@ -67,12 +67,12 @@ class Auth(object):
             raise AuthAlreadyLoggedInError(self._sessions[hostmask.host])
 
         # Make sure we actually have an account
-        if email not in self._users.sections():
+        if email not in self._users_config.sections():
             self._log.info('No account under the e-mail address %s exists', email)
             raise AuthNoSuchUserError(email)
 
         # Check our password
-        pass_hash = self._users.get(email, 'Password')
+        pass_hash = self._users_config.get(email, 'Password')
         try:
             valid_login = bcrypt.verify(password, pass_hash)
         except ValueError:
@@ -84,7 +84,7 @@ class Auth(object):
             raise AuthBadLoginError(email)
 
         # If we're still here, we've successfully authenticated and we need to create a new login session
-        user = None
+        user = User(email, self._users_config)
         self._sessions[hostmask.host] = AuthSession(user, hostmask, {'hours': +36})
 
     def logout(self, hostmask):
