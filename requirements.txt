@@ -8,6 +8,8 @@ appdirs~=1.4.0
 agentml~=0.3.1
 venusian~=1.0
 ircmessage~=0.1
+passlib~=1.6.5
+bcrypt~=2.0
 arrow~=0.7.0
 
 # Google plugin

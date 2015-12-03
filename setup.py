@@ -48,7 +48,8 @@ setup(
     },
     install_requires=['twisted>=15.4.0,<15.5', 'click>=6.2,<6.3', 'alembic>=0.8.3,<0.9', 'pymysql>=0.6.7,<0.7',
                       'voluptuous>=0.8.7,<0.9', 'appdirs>=1.4.0,<1.5', 'agentml>=0.3.1,<0.4', 'venusian>=1.0,<1.1',
-                      'ircmessage>=0.1,<0.2', 'arrow>=0.7,<0.8', 'poogle>=0.1,<0.2'],
+                      'ircmessage>=0.1,<0.2', 'passlib>=1.6.5,<1.7', 'bcrypt>=2.0,<2.1', 'arrow>=0.7,<0.8',
+                      'poogle>=0.1,<0.2'],
     package_data={
         'firefly': find_data_files(),
     },

@@ -7,9 +7,9 @@ from firefly import FireflyIRC
 from firefly.cli.config import pass_context, Context
 
 
-@click.command('delete')
+@click.command('serverdel')
 @click.argument('host')
-@click.option('--no-prompt', help='Skip the safety deletion prompt.', is_flag=True)
+@click.option('--no-prompt', help='Skip the safety deletion prompt', is_flag=True)
 @pass_context
 def cli(ctx, host, no_prompt):
     """
@@ -40,4 +40,4 @@ def cli(ctx, host, no_prompt):
     if os.path.exists(host_cfg_path):
         os.remove(host_cfg_path)
 
-    click.secho('{h} configuration files and server setting attributes removed'.format(h=host), color='red', bold=True)
+    click.secho('{h} configuration files and server setting attributes removed'.format(h=host), bold=True)

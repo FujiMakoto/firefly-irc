@@ -8,19 +8,19 @@ from firefly import FireflyIRC
 from firefly.cli.config import pass_context, Context
 
 
-@click.command('create')
-@click.option('-h', '--host', prompt='Server hostname', help='Server hostname.')
-@click.option('-p', '--port', default=6667, prompt='Server port number', help='Server port number.')
+@click.command('serveradd')
+@click.option('-h', '--host', prompt='Server hostname', help='Server hostname')
+@click.option('-p', '--port', default=6667, prompt='Server port number', help='Server port number')
 @click.option('--auto/--no-auto', default=True, prompt='Automatically connect to this server on startup?',
-              help='Automatically connect to this server. (Default: True)')
+              help='Automatically connect to this server (Default: True)')
 @click.option('-n', '--nick', default='Firefly', prompt='Nick', help='Nickname')
 @click.option('-u', '--username', default='Firefly', prompt='Username', help='Username')
 @click.option('-r', '--realname', default='Firefly Alpha', prompt='Realname', help='Real name')
-@click.option('--ssl/--no-ssl', help='Enable SSL on this server. (Default: False)', default=False)
+@click.option('--ssl/--no-ssl', help='Enable SSL on this server (Default: False)', default=False)
 @click.option('--password', help='Server password', default='')
 @click.option('-c', '--channels', prompt='Channels to autojoin (separated by commas)',
-              help='Comma separated list of channels to autojoin.', default='')
-@click.option('-f', '--force', is_flag=True, help='Overwrite any existing configuration files.')
+              help='Comma separated list of channels to autojoin', default='')
+@click.option('-f', '--force', is_flag=True, help='Overwrite any existing configuration files')
 @pass_context
 def cli(ctx, host, port, auto, nick, username, realname, ssl, password, channels, force):
     """
