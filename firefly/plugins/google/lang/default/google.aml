@@ -1,0 +1,18 @@
+<!DOCTYPE agentml PUBLIC "https://github.com/FujiMakoto/AgentML" "https://raw.githubusercontent.com/FujiMakoto/AgentML/master/agentml/schemas/agentml.rng">
+
+<agentml version="0.2" xmlns="">
+    <!-- Search Google for this -->
+    <trigger>
+        <pattern>google [search] (*)</pattern>
+        <template>
+            <command>google search <star/></command>
+        </template>
+    </trigger>
+
+    <trigger>
+        <pattern>search [google] for (*)</pattern>
+        <template>
+            <command>google search <star/></command>
+        </template>
+    </trigger>
+</agentml>
