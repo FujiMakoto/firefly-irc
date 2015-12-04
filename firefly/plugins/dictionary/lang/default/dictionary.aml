@@ -1,0 +1,18 @@
+<!DOCTYPE agentml PUBLIC "https://github.com/FujiMakoto/AgentML" "https://raw.githubusercontent.com/FujiMakoto/AgentML/master/agentml/schemas/agentml.rng">
+
+<agentml version="0.2" xmlns="">
+    <!-- What does this word mean? -->
+    <trigger>
+        <pattern>[get me|tell me|what is] the (definition|meaning) of (_)</pattern>
+        <template>
+            <command>dictionary define <star index="2"/></command>
+        </template>
+    </trigger>
+
+    <trigger>
+        <pattern>define (_)</pattern>
+        <template>
+            <command>dictionary define <star/></command>
+        </template>
+    </trigger>
+</agentml>
