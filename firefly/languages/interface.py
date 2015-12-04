@@ -9,7 +9,7 @@ class LanguageInterface(object):
         pass
 
     @abstractmethod
-    def get_reply(self, message, client='localhost', groups=None):
+    def get_reply(self, message):
         pass
 
     @abstractmethod

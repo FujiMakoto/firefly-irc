@@ -38,7 +38,7 @@ class FireflyIRC(IRCClient):
     DATA_DIR   = os.path.join(appdirs.user_data_dir('firefly'), 'irc')
     LOG_DIR    = os.path.join(appdirs.user_log_dir('firefly'), 'irc')
 
-    def __init__(self, server, language='aml'):
+    def __init__(self, server, language='agentml'):
         """
         @type   server:     firefly.containers.Server
 
@@ -158,7 +158,7 @@ class FireflyIRC(IRCClient):
         self._log.info('Loading language interface: {lang}'.format(lang=language))
         try:
             module = importlib.import_module('firefly.languages.{module}'.format(module=language))
-            self.language = module.__LANGUAGE_CLASS__()
+            self.language = module.LANGUAGE_CLASS(self)
         except ImportError as e:
             self._log.error('ImportError raised when loading language')
             raise LanguageImportError('Unable to import language engine "{lang}": {err}'
@@ -516,8 +516,7 @@ class FireflyIRC(IRCClient):
         message     = Message(message, destination, hostmask)
         is_command  = False
         has_reply   = False
-        reply_dest  = destination
-        groups = set()
+        reply_dest  = hostmask if message.destination.is_user else destination
 
         # Log the message
         self.server.get_or_create_channel(channel).message_log.add_message(message)
@@ -526,38 +525,12 @@ class FireflyIRC(IRCClient):
         if message.is_command:
             self._log.debug('Message registered as a command: %s', repr(message))
             is_command = True
-            groups.add('command')
 
             command_plugin, command_name, command_args = message.command_parts
             self._fire_command(command_plugin, command_name, command_args, message)
 
-        # Is this a private message?
-        if message.destination.is_user:
-            groups.add(None)
-            groups.add('private')
-            reply_dest = hostmask
-
-        # Have we been mentioned in this message?
-        nicks = self.server.identity.nicks
-        try:
-            nick, raw_message, match = message.get_mentions(nicks)
-            groups.add(None)
-        except TypeError:
-            self._log.debug('Message has no mentions at the beginning')
-
-            try:
-                nick, raw_message, match = message.get_mentions(nicks, message.MENTION_END)
-                groups.add(None)
-            except TypeError:
-                self._log.debug('Message has no mentions at the end')
-                nick = self.nickname
-                raw_message = message.stripped
-                match = False
-                if message.destination.is_channel:
-                    groups.add('public')
-
         # Do we have a language response?
-        reply = self.language.get_reply(raw_message, groups=groups)
+        reply = self.language.get_reply(message) if not is_command else None
         if reply:
             self._log.debug('Reply matched: %s', reply)
             has_reply = True
